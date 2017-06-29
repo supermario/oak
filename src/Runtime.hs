@@ -11,14 +11,14 @@ import Prelude hiding (init)
 
 
 import qualified App
-import qualified AppTypes as App
+import qualified Oak
 
 main :: IO ()
 main = do
   putStrLn "Starting..."
-  putStrLn $ App.view_ app model
-  putStrLn $ App.view_ app newModel
+  putStrLn $ Oak.view_ app model
+  putStrLn $ Oak.view_ app newModel
 
   where app = App.main
-        model = App.init_ app
-        newModel = App.update model App.Increment
+        model = Oak.init_ app
+        newModel = App.update model Oak.Increment

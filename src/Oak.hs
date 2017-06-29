@@ -1,6 +1,4 @@
--- Trying out the Elm architecture with Hilt
-
-module AppTypes where
+module Oak where
 
 import Prelude hiding (init)
 -- import Navigation

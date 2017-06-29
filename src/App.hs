@@ -1,13 +1,7 @@
--- Trying out the Elm architecture with Hilt
-
 module App where
 
 import Prelude hiding (init)
--- import Navigation
--- import Types
--- import State
--- import View
-import AppTypes
+import Oak
 
 -- main :: Program Types.Model Types.Msg
 main :: Program

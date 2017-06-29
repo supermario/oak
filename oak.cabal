@@ -1,0 +1,46 @@
+name:                oak
+version:             0.0.0.1
+synopsis:            A reactive server-side application framework + tookit for using Haskell with Elm
+description:         Please see README.md
+homepage:            https://github.com/supermario/oak#readme
+author:              Mario Rogic
+maintainer:          hello@mario.net.au
+copyright:           2016 Mario Rogic
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Oak
+
+  build-depends:       base >= 4.7 && < 5
+                       , random
+                       , aeson
+                       , http-dispatch
+                       , bytestring
+                       , text
+                       , stm
+                       , managed
+                       , monad-control
+                       , resourcet
+                       , slave-thread
+                       , unagi-chan
+                       , cache
+
+  default-language:    Haskell2010
+  default-extensions:  OverloadedStrings
+
+executable oak-example
+  main-is: Runtime.hs
+  build-depends:       base
+  other-modules:       Runtime
+                     , App
+
+  hs-source-dirs:      src/
+  default-language:    Haskell2010
+  default-extensions:  OverloadedStrings
+
+source-repository head
+  type:     git
+  location: https://github.com/supermario/oak
