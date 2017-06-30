@@ -2,6 +2,10 @@ resolver: lts-7.24
 
 packages:
 - '.'
+- '../hilt'
+# - location:
+#     git: https://github.com/supermario/hilt.git
+#     commit: 3f699af
 
 extra-deps:
 - heroku-0.1.2.3

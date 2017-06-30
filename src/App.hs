@@ -5,15 +5,9 @@ import Oak
 
 -- main :: Program Types.Model Types.Msg
 main :: Program
-main =
-  Program
-    { init_ = 0
-    , update_ = update
-    , subscriptions_ = subscriptions
-    , view_ = view
-    }
+main = Program 0 update view subscriptions
 
-view model = show model
+view = show
 
 update :: Model -> Msg -> Model
 update model msg = case msg of

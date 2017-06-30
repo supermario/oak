@@ -13,6 +13,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Oak
+                       App
 
   build-depends:       base >= 4.7 && < 5
                        , random
@@ -27,6 +28,7 @@ library
                        , slave-thread
                        , unagi-chan
                        , cache
+                       , hilt
 
   default-language:    Haskell2010
   default-extensions:  OverloadedStrings
@@ -34,8 +36,13 @@ library
 executable oak-example
   main-is: Runtime.hs
   build-depends:       base
+                     , stm
+                     , text
+                     , hilt
+                     , unagi-chan
+                     , slave-thread
+
   other-modules:       Runtime
-                     , App
 
   hs-source-dirs:      src/
   default-language:    Haskell2010
