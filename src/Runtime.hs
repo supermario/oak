@@ -23,35 +23,31 @@ main =
       tModel <- newTVarIO $ Oak.init_ App.main
       (chanW,chanR) <- newChan
 
-      putStrLn $ "Initial view is:" ++ Oak.view_ app model
+      putStrLn $ Oak.view_ App.main $ Oak.init_ App.main
 
-      -- Create a worker listening to the broadcastChan channel
+      -- Create a worker listening to the message channel
       worker chanR (\msg -> do
-
           output <- atomically $ do
             model <- readTVar tModel
             let newModel = App.update model msg
             writeTVar tModel newModel
             return $ App.view newModel
 
-          putStrLn $ "Got: " ++ show msg
-          putStrLn $ "View is:" ++ output
+          putStrLn output
         )
 
+      let subs = Oak.subscriptions_ App.main
+      forever $ mapM_ (>>= writeChan chanW) subs
+
       -- Simulate delay + event
-      threadDelay 2000
-      writeChan chanW Increment
-      threadDelay 3000
-      writeChan chanW Increment
-      writeChan chanW Increment
-      writeChan chanW Increment
-      threadDelay 3000
-      writeChan chanW Decrement
-
-  where app = App.main
-        model = Oak.init_ app
-        newModel = App.update model Oak.Increment
-
+      -- threadDelay 2000
+      -- writeChan chanW Increment
+      -- threadDelay 3000
+      -- writeChan chanW Increment
+      -- writeChan chanW Increment
+      -- writeChan chanW Increment
+      -- threadDelay 3000
+      -- writeChan chanW Decrement
 
 worker :: OutChan t -> (t -> IO a) -> IO ()
 worker chan handler = do

@@ -14,5 +14,11 @@ update model msg = case msg of
   Increment -> model + 1
   Decrement -> model - 1
   Noop -> model
+  KeyPress key ->
+    case key of
+      "\n" -> model
+      "u"  -> model + 1
+      "d"  -> model - 1
+      _    -> model
 
-subscriptions = []
+subscriptions = [keySubscription KeyPress]

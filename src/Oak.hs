@@ -1,22 +1,30 @@
 module Oak where
 
 import Prelude hiding (init)
--- import Navigation
--- import Types
--- import State
--- import View
 
 data Program = Program
   { init_ :: Int
   , update_ :: Model -> Msg -> Model
   , view_ :: Model -> String
-  , subscriptions_ :: [Int]
+  , subscriptions_ :: [IO Msg]
   }
 
+-- @TODO paramaterize runtime and move types to App
 type Model = Int
+data Msg
+  = Increment
+  | Decrement
+  | KeyPress String
+  | Noop
 
-data Msg = Increment | Decrement | Noop deriving (Read, Show, Eq)
+-- Subscriptions
 
+keySubscription :: (String -> msg) -> IO msg
+keySubscription msg = do
+  x <- getChar
+  return $ msg [x]
+
+-- Utilities
 
 (<|) :: (a -> b) -> a -> b
 f <| x = f x
