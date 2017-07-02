@@ -1,5 +1,4 @@
 {-# LANGUAGE StandaloneDeriving #-}
--- Trying out the Elm architecture with Hilt
 
 module OakRuntime where
 
@@ -55,27 +54,10 @@ run =
 
 runCmd :: InChan msg -> Cmd msg -> IO ()
 runCmd chanW cmd = do
-  -- @TODO forkIO will not crash the runtime on unhandled child exceptions
-  -- However it won't prevent children creating ghost threads like ST.fork
-  -- Is there a balanced alternative?
-  let thread = do
-        ST.fork $ do
-          maybeMsg <- task_ cmd
-          forM_ maybeMsg $ writeChan chanW
-        return ()
-
-  -- https://wiki.haskell.org/Error_vs._Exception#When_errors_become_exceptions
-  catch (evaluate thread) errorHandler
+  forkIO $ do
+    maybeMsg <- task_ cmd
+    forM_ maybeMsg $ writeChan chanW
   return ()
-
-
-errorHandler :: ErrorCall -> IO (IO ())
-errorHandler e =
-    return $ do
-      putStrLn "Exception thrown by task!"
-      print (e :: ErrorCall)
-
-
 
 
 worker :: OutChan msg -> (msg -> IO a) -> IO ()
