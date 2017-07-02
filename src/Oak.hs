@@ -2,6 +2,8 @@ module Oak where
 
 import Prelude hiding (init, (.))
 import Control.Concurrent (threadDelay)
+import System.Exit (exitSuccess, exitFailure)
+
 
 data Program model msg = Program
   { init_ :: model
@@ -9,6 +11,7 @@ data Program model msg = Program
   , view_ :: model -> String
   , subscriptions_ :: [IO msg]
   }
+
 
 data Cmd msg = Cmd { task_ :: IO (Maybe msg) }
 
@@ -37,12 +40,28 @@ asTask :: msg -> Cmd msg
 asTask msg =
   task $ return $ Just msg
 
+
+-- @TODO these commands will do nothing in a regular program, which is good!
+-- But what if we want to write a command line utility with Oak?
+-- Do we have a different program type that allows these tasks, which would also
+-- allow unhandled exceptions and errors to crash the program?
+exit :: Cmd msg
+exit =
+  task exitSuccess
+
+
+die :: Cmd msg
+die =
+  task exitFailure
+
+
 -- Subscriptions
 
 keySubscription :: (String -> msg) -> IO msg
 keySubscription msg = do
   x <- getChar
   return $ msg [x]
+
 
 -- Utilities
 

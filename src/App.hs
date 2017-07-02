@@ -24,6 +24,7 @@ update model msg = case msg of
       "u"  -> (model + 1, cmdNone)
       "d"  -> (model - 1, cmdNone)
       "k"  -> (model, naughty)
+      "e"  -> (model, exit)
       _    -> (model, cmdNone)
 
 view = show
