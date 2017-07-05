@@ -30,6 +30,11 @@ data Subscription msg
   | SubWebsocket String (WsJoined msg) (WsReceive msg)
 
 
+type SocketId = Int
+type WsJoined msg  = (SocketId -> Int -> msg)
+type WsReceive msg = (SocketId -> Text -> msg)
+
+
 data Service = Service
   { handle :: ServiceHandle
   , kind :: ServiceKinds }
@@ -86,27 +91,6 @@ socketBroadcast = CmdSocketBroadcast
 -- die =
 --   task exitFailure
 
-
--- Subscriptions
-
---- Websocket
-
-type SocketId = Int
-type WsJoined msg  = (SocketId -> Int -> msg)
-type WsReceive msg = (SocketId -> Text -> msg)
-
-
-websocketSend :: SocketId -> Text -> Hilt.SocketServer.Handle -> IO ()
-websocketSend clientId text socketHandle =
-  Hilt.SocketServer.send socketHandle clientId text
-
-
-websocketBroadcast :: Text -> Hilt.SocketServer.Handle -> IO ()
-websocketBroadcast text socketHandle =
-  Hilt.SocketServer.broadcast socketHandle text
-
-
---- Console (TBC)
 
 keypressListen :: (String -> msg) -> Subscription msg
 keypressListen = SubKeypress

@@ -44,9 +44,9 @@ update model@Model{..} msg = case msg of
       "b"  -> (model, socketBroadcast "Testing!")
       _    -> (model, cmdNone)
 
-  SocketJoined _ _ -> (model { message = "User joined!" }, cmdNone)
+  SocketJoined socketId clientCount -> (model { message = "User joined!" }, cmdNone)
 
-  SocketReceive _ text -> (model { message = text }, cmdNone)
+  SocketReceive socketId text -> (model { message = text }, cmdNone)
 
 
 view :: Model -> String

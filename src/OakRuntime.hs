@@ -2,9 +2,6 @@
 
 module OakRuntime where
 
-import Prelude hiding
-  ((.)) -- See `Experimental` in Oak.hs
-
 import SlaveThread as ST
 import Control.Concurrent.Chan.Unagi
 import Control.Concurrent.STM
@@ -36,85 +33,98 @@ run = do
     Hilt.program $ do
       let app = App.main
 
-      tModel <- newTVarIO $ app.init_
+      tModel <- newTVarIO $ init_ app
       (chanW,chanR) <- newChan
 
       c <- Cache.newCache Nothing :: IO (Cache.Cache ServiceKinds Service)
 
+      -- Print the initial view to screen
+      putStrLn $ view_ app $ init_ app
+
+      -- Boot any services required by subscriptions
       mapM_
         (\s -> case s of
-          SubKeypress onKeypress -> do
-            -- @TODO check for presence first
-            Cache.insert c Console $ Service NoHandle Console
+          SubKeypress onKeypress ->
+            serviceOrCreate c Console $ do
+              Cache.insert c Console $ Service NoHandle Console
 
-            _ <- forkIO $ forever $ do
-              x <- getChar
-              writeChan chanW $ onKeypress [x]
+              _ <- forkIO $ forever $ do
+                x <- getChar
+                writeChan chanW $ onKeypress [x]
 
-            return ()
+              return ()
 
-          SubWebsocket path onJoined onReceive -> do
-            service <- subWebsocket path onJoined onReceive chanW
+          SubWebsocket path onJoined onReceive ->
+            serviceOrCreate c WebSocket $ do
+              service <- subWebsocket path onJoined onReceive chanW
 
-            -- @TODO check for presence first
-            Cache.insert c WebSocket service
+              Cache.insert c WebSocket service
 
-            _ <- forkIO $
-              case handle service of
-                SocketHandle socketHandle ->
-                  let backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
-                      waiApp = websocketsOr defaultConnectionOptions (SocketServer.app socketHandle) backupApp
+              _ <- forkIO $
+                case handle service of
+                  SocketHandle socketHandle ->
+                    -- @TODO serve static asset middleware
+                    let backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
+                        waiApp = websocketsOr defaultConnectionOptions (SocketServer.app socketHandle) backupApp
 
-                  in Warp.run port waiApp
-                NoHandle -> putStrLn "CmdSocketBroadcast got NoHandle?!"
+                    in Warp.run port waiApp
+                  NoHandle -> putStrLn "CmdSocketBroadcast got NoHandle?!"
 
-            return ()
-
+              return ()
         )
-        (app.subscriptions_)
+        (subscriptions_ app)
 
-      putStrLn "Services done..."
-
-      -- Create a worker listening to the message channel
+      -- Create the worker for the msg channel
       worker chanR (\msg -> do
 
           -- Atomically retrieve, update and replace our model
           (model, cmd) <- atomically $ do
             model <- readTVar tModel
-            let (newModel, cmd) = (app.update_) model msg
+            let (newModel, cmd) = update_ app model msg
             writeTVar tModel newModel
             return (newModel, cmd)
 
           -- Display our current state
-          putStrLn $ app.view_ $ model
+          putStrLn $ view_ app model
 
+          -- Execute any commands
           case cmd of
-            CmdSocketSend socketId text -> do
-              serviceLookup <- Cache.lookup c WebSocket
-              case serviceLookup of
-                Just service ->
-                  case handle service of
-                    SocketHandle socketHandle -> websocketSend socketId text socketHandle
-                    NoHandle -> putStrLn "CmdSocketSend got NoHandle?!"
+            CmdSocketSend socketId text ->
+              withSocketHandle c (\h -> SocketServer.send h socketId text)
 
-                Nothing -> putStrLn "CmdSocketSend could not find handle!"
+            CmdSocketBroadcast text ->
+              withSocketHandle c (`SocketServer.broadcast` text)
 
-            CmdSocketBroadcast text -> do
-              serviceLookup <- Cache.lookup c WebSocket
-              case serviceLookup of
-                Just service ->
-                  case handle service of
-                    SocketHandle socketHandle -> websocketBroadcast text socketHandle
-                    NoHandle -> putStrLn "CmdSocketBroadcast got NoHandle?!"
-                Nothing -> putStrLn "CmdSocketBroadcast could not find handle!"
-
-            CmdNone ->
-              putStrLn "CmdNone received."
-
+            CmdNone -> return ()
         )
 
-      -- Print the initial view to screen
-      putStrLn $ app.view_ $ app.init_
+
+serviceOrCreate :: Cache.Cache ServiceKinds Service -> ServiceKinds -> IO () -> IO ()
+serviceOrCreate c serviceKind create = do
+  serviceM <- Cache.lookup c serviceKind
+  case serviceM of
+    Just _ -> return ()
+    Nothing -> create
+
+
+withSocketHandle :: Cache.Cache ServiceKinds Service -> (SocketServer.Handle -> IO ()) -> IO ()
+withSocketHandle c f = do
+  socketHandleM <- getSocketHandle c
+  case socketHandleM of
+    Just socketHandle -> f socketHandle
+    Nothing -> putStrLn "[ERROR] Could not find SocketServer handle"
+
+
+getSocketHandle :: Cache.Cache ServiceKinds Service -> IO (Maybe SocketServer.Handle)
+getSocketHandle c = do
+  serviceLookup <- Cache.lookup c WebSocket
+  case serviceLookup of
+    Just service ->
+      case handle service of
+        SocketHandle socketHandle -> return $ Just socketHandle
+        NoHandle -> return Nothing
+
+    Nothing -> return Nothing
 
 
 subWebsocket :: String -> WsJoined msg -> WsReceive msg -> InChan msg -> IO Service
