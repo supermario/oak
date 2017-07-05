@@ -1,66 +1,118 @@
 module Oak where
 
-import Prelude hiding (init, (.))
+import Prelude hiding ((.))
+
 import Control.Concurrent (threadDelay)
-import System.Exit (exitSuccess, exitFailure)
+-- import System.Exit        (exitSuccess, exitFailure)
+import System.IO.Unsafe   (unsafePerformIO)
+import Data.Text          (Text)
+
+import Data.Hashable (Hashable, hashWithSalt)
+import Hilt.SocketServer
 
 
 data Program model msg = Program
   { init_ :: model
   , update_ :: model -> msg -> (model, Cmd msg)
   , view_ :: model -> String
-  , subscriptions_ :: [IO msg]
+  , subscriptions_ :: [Subscription msg]
   }
 
 
-data Cmd msg = Cmd { task_ :: IO (Maybe msg) }
+data Cmd msg
+  = CmdSocketSend SocketId Text
+  | CmdSocketBroadcast Text
+  | CmdNone
 
 
+data Subscription msg
+  = SubKeypress (String -> msg)
+  | SubWebsocket String (WsJoined msg) (WsReceive msg)
+
+
+data Service = Service
+  { handle :: ServiceHandle
+  , kind :: ServiceKinds }
+
+
+data ServiceKinds = WebSocket | Console deriving (Eq, Enum)
+instance Hashable ServiceKinds where
+  hashWithSalt _ = fromEnum
+
+
+data ServiceHandle
+  = SocketHandle Hilt.SocketServer.Handle
+  | NoHandle
+
+
+cmdNone :: Cmd msg
 cmdNone
-  = Cmd { task_ = return Nothing }
+  = CmdNone
 
 
-task x
-  = Cmd { task_ = x }
+socketSend :: SocketId -> Text -> Cmd msg
+socketSend = CmdSocketSend
 
 
-delay :: Int -> Cmd msg -> Cmd msg
-delay milliseconds cmd =
-  task $ do
-    threadDelay (milliseconds * 1000)
-    task_ cmd
+socketBroadcast :: Text -> Cmd msg
+socketBroadcast = CmdSocketBroadcast
 
 
-naughty :: Cmd msg
-naughty =
-  task $ error "Oops! Error!"
+-- delay :: Int -> Cmd msg -> Cmd msg
+-- delay milliseconds cmd =
+--   task $ do
+--     sleep milliseconds
+--     task_ cmd
 
+-- naughty :: Cmd msg
+-- naughty =
+--   task $ error "Oops! Error!"
 
-asTask :: msg -> Cmd msg
-asTask msg =
-  task $ return $ Just msg
+-- asTask :: msg -> Cmd msg
+-- asTask msg =
+--   task $ return $ Just msg
 
 
 -- @TODO these commands will do nothing in a regular program, which is good!
 -- But what if we want to write a command line utility with Oak?
 -- Do we have a different program type that allows these tasks, which would also
 -- allow unhandled exceptions and errors to crash the program?
-exit :: Cmd msg
-exit =
-  task exitSuccess
-
-
-die :: Cmd msg
-die =
-  task exitFailure
+-- exit :: Cmd msg
+-- exit =
+--   task exitSuccess
+--
+--
+-- die :: Cmd msg
+-- die =
+--   task exitFailure
 
 
 -- Subscriptions
 
-keySubscription :: (String -> msg) -> IO msg
-keySubscription msg = do
-  x <- getChar
-  return $ msg [x]
+--- Websocket
+
+type SocketId = Int
+type WsJoined msg  = (SocketId -> Int -> msg)
+type WsReceive msg = (SocketId -> Text -> msg)
+
+
+websocketSend :: SocketId -> Text -> Hilt.SocketServer.Handle -> IO ()
+websocketSend clientId text socketHandle =
+  Hilt.SocketServer.send socketHandle clientId text
+
+
+websocketBroadcast :: Text -> Hilt.SocketServer.Handle -> IO ()
+websocketBroadcast text socketHandle =
+  Hilt.SocketServer.broadcast socketHandle text
+
+
+--- Console (TBC)
+
+keypressListen :: (String -> msg) -> Subscription msg
+keypressListen = SubKeypress
+
+websocketListen :: String -> WsJoined msg -> WsReceive msg -> Subscription msg
+websocketListen = SubWebsocket
 
 
 -- Utilities
@@ -124,3 +176,13 @@ identity = id
 
 (.) :: a -> (a -> b) -> b
 (.) record f = f record
+
+
+debug :: String -> String -> ()
+debug x y = unsafePerformIO $ do
+  putStrLn x
+  putStrLn y
+
+
+sleep :: Int -> IO ()
+sleep milliseconds = threadDelay (milliseconds * 1000)
