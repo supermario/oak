@@ -19,25 +19,14 @@ library
 
   build-depends:       base >= 4.7 && < 5
                        , random
-                       , aeson
-                       , http-dispatch
                        , bytestring
                        , text
                        , stm
-                       , managed
-                       , monad-control
-                       , resourcet
                        , slave-thread
                        , unagi-chan
                        , cache
                        , hilt
                        , hashable
-                       , wai
-                       , warp
-                       , http-types
-                       , websockets
-                       , wai-websockets
-
 
   default-language:    Haskell2010
   default-extensions:  OverloadedStrings

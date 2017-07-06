@@ -10,14 +10,8 @@ import Control.Monad      (forever)
 
 import qualified Data.Cache as Cache
 
-import qualified Network.Wai.Handler.Warp as Warp
-import Network.Wai                    (responseLBS)
-import Network.HTTP.Types             (status400)
-import Network.Wai.Handler.WebSockets (websocketsOr)
-import Network.WebSockets             (defaultConnectionOptions)
-
 import qualified Hilt
-import qualified Hilt.Config as Config
+import qualified Hilt.Server
 import qualified Hilt.SocketServer as SocketServer
 
 import qualified App
@@ -28,9 +22,7 @@ deriving instance Show App.Msg
 type ServiceCache = Cache.Cache ServiceKinds Service
 
 run :: IO ()
-run = do
-  port <- Config.lookupEnv "PORT" 8081
-
+run =
   Hilt.manage $
     Hilt.program $ do
       let app = App.main
@@ -62,17 +54,12 @@ run = do
 
               Cache.insert c WebSocket service
 
-              _ <- forkIO $
-                case handle service of
-                  SocketHandle socketHandle ->
-                    -- @TODO serve static asset middleware
-                    let backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
-                        waiApp = websocketsOr defaultConnectionOptions (SocketServer.app socketHandle) backupApp
+              case handle service of
+                SocketHandle socketHandle -> do
+                  _ <- forkIO $ Hilt.Server.runWebsocket socketHandle
+                  return ()
 
-                    in Warp.run port waiApp
-                  NoHandle -> putStrLn "CmdSocketBroadcast got NoHandle?!"
-
-              return ()
+                NoHandle -> putStrLn "CmdSocketBroadcast got NoHandle?!"
         )
         (subscriptions_ app)
 
