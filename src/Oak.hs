@@ -2,8 +2,6 @@ module Oak where
 
 import Prelude hiding ((.))
 
-import Control.Concurrent (threadDelay)
--- import System.Exit        (exitSuccess, exitFailure)
 import System.IO.Unsafe   (unsafePerformIO)
 import Data.Text          (Text)
 
@@ -22,7 +20,11 @@ data Program model msg = Program
 data Cmd msg
   = CmdSocketSend SocketId Text
   | CmdSocketBroadcast Text
+  | CmdDelay Int (Cmd msg)
   | CmdNone
+  -- TBC
+  -- | CmdExit
+  -- | CmdDie
 
 
 data Subscription msg
@@ -51,8 +53,7 @@ data ServiceHandle
 
 
 cmdNone :: Cmd msg
-cmdNone
-  = CmdNone
+cmdNone = CmdNone
 
 
 socketSend :: SocketId -> Text -> Cmd msg
@@ -63,37 +64,28 @@ socketBroadcast :: Text -> Cmd msg
 socketBroadcast = CmdSocketBroadcast
 
 
--- delay :: Int -> Cmd msg -> Cmd msg
--- delay milliseconds cmd =
---   task $ do
---     sleep milliseconds
---     task_ cmd
-
--- naughty :: Cmd msg
--- naughty =
---   task $ error "Oops! Error!"
-
--- asTask :: msg -> Cmd msg
--- asTask msg =
---   task $ return $ Just msg
+delay :: Int -> Cmd msg -> Cmd msg
+delay = CmdDelay
 
 
 -- @TODO these commands will do nothing in a regular program, which is good!
 -- But what if we want to write a command line utility with Oak?
 -- Do we have a different program type that allows these tasks, which would also
 -- allow unhandled exceptions and errors to crash the program?
--- exit :: Cmd msg
--- exit =
---   task exitSuccess
 --
+-- exit :: Cmd msg
+-- exit = CmdExit
 --
 -- die :: Cmd msg
--- die =
---   task exitFailure
+-- die = CmdDie
+
+
+-- Subscriptions
 
 
 keypressListen :: (String -> msg) -> Subscription msg
 keypressListen = SubKeypress
+
 
 websocketListen :: String -> WsJoined msg -> WsReceive msg -> Subscription msg
 websocketListen = SubWebsocket
@@ -166,7 +158,3 @@ debug :: String -> String -> ()
 debug x y = unsafePerformIO $ do
   putStrLn x
   putStrLn y
-
-
-sleep :: Int -> IO ()
-sleep milliseconds = threadDelay (milliseconds * 1000)

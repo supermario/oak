@@ -5,7 +5,7 @@ module OakRuntime where
 import SlaveThread as ST
 import Control.Concurrent.Chan.Unagi
 import Control.Concurrent.STM
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad      (forever)
 
 import qualified Data.Cache as Cache
@@ -25,6 +25,8 @@ import Oak
 
 deriving instance Show App.Msg
 
+type ServiceCache = Cache.Cache ServiceKinds Service
+
 run :: IO ()
 run = do
   port <- Config.lookupEnv "PORT" 8081
@@ -36,7 +38,7 @@ run = do
       tModel <- newTVarIO $ init_ app
       (chanW,chanR) <- newChan
 
-      c <- Cache.newCache Nothing :: IO (Cache.Cache ServiceKinds Service)
+      c <- Cache.newCache Nothing :: IO ServiceCache
 
       -- Print the initial view to screen
       putStrLn $ view_ app $ init_ app
@@ -88,18 +90,32 @@ run = do
           putStrLn $ view_ app model
 
           -- Execute any commands
-          case cmd of
-            CmdSocketSend socketId text ->
-              withSocketHandle c (\h -> SocketServer.send h socketId text)
-
-            CmdSocketBroadcast text ->
-              withSocketHandle c (`SocketServer.broadcast` text)
-
-            CmdNone -> return ()
+          runCmd c cmd
         )
 
 
-serviceOrCreate :: Cache.Cache ServiceKinds Service -> ServiceKinds -> IO () -> IO ()
+runCmd :: ServiceCache -> Cmd msg -> IO ()
+runCmd c cmd =
+  case cmd of
+    CmdSocketSend socketId text ->
+      withSocketHandle c (\h -> SocketServer.send h socketId text)
+
+    CmdSocketBroadcast text ->
+      withSocketHandle c (`SocketServer.broadcast` text)
+
+    CmdDelay milliseconds cmd_ -> do
+      sleep milliseconds
+      runCmd c cmd_
+
+    CmdNone -> return ()
+
+    -- These exist for reference but are TBC
+    -- import System.Exit        (exitSuccess, exitFailure)
+    -- CmdExit -> exitSuccess
+    --
+    -- CmdDie  -> exitFailure
+
+serviceOrCreate :: ServiceCache -> ServiceKinds -> IO () -> IO ()
 serviceOrCreate c serviceKind create = do
   serviceM <- Cache.lookup c serviceKind
   case serviceM of
@@ -107,7 +123,7 @@ serviceOrCreate c serviceKind create = do
     Nothing -> create
 
 
-withSocketHandle :: Cache.Cache ServiceKinds Service -> (SocketServer.Handle -> IO ()) -> IO ()
+withSocketHandle :: ServiceCache -> (SocketServer.Handle -> IO ()) -> IO ()
 withSocketHandle c f = do
   socketHandleM <- getSocketHandle c
   case socketHandleM of
@@ -115,7 +131,7 @@ withSocketHandle c f = do
     Nothing -> putStrLn "[ERROR] Could not find SocketServer handle"
 
 
-getSocketHandle :: Cache.Cache ServiceKinds Service -> IO (Maybe SocketServer.Handle)
+getSocketHandle :: ServiceCache -> IO (Maybe SocketServer.Handle)
 getSocketHandle c = do
   serviceLookup <- Cache.lookup c WebSocket
   case serviceLookup of
@@ -153,3 +169,7 @@ worker chan handler = do
     text <- readChan chan
     handler text
   return ()
+
+
+sleep :: Int -> IO ()
+sleep milliseconds = threadDelay (milliseconds * 1000)
