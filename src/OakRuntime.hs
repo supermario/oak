@@ -131,15 +131,13 @@ subWebsocket :: String -> WsJoined msg -> WsReceive msg -> InChan msg -> IO Serv
 subWebsocket _ onJoinedMsg onReceiveMsg chanW = do
   let
       onJoined :: SocketServer.OnJoined
-      onJoined clientCount = do
-        -- @TODO fix clientId stub
-        writeChan chanW $ onJoinedMsg 123 clientCount
+      onJoined clientId clientCount = do
+        writeChan chanW $ onJoinedMsg clientId  clientCount
         return Nothing
 
       onReceive :: SocketServer.OnReceive
-      onReceive text =
-        -- @TODO fix clientId stub
-        writeChan chanW $ onReceiveMsg 123 text
+      onReceive clientId text =
+        writeChan chanW $ onReceiveMsg clientId text
 
   socketServerH <- SocketServer.loadRaw onJoined onReceive
 
