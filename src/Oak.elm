@@ -15,40 +15,74 @@ import Bootstrap.Grid as Grid
 import Bootstrap.Grid.Col as Col
 import Combine exposing (ParseResult)
 import Dict
+import List.Extra as List
 
 
-sampleModule : String
-sampleModule =
+v1text : String
+v1text =
+  -- Version 1, Baseline
   """
-
--- Version 1, Baseline
 type alias Model =
   { name : String
   }
--- Version 2, Add field
+"""
+
+
+v2text : String
+v2text =
+  -- Version 2, Add field
+  """
 type alias Model =
   { name : String
   , lastName : String
   }
--- Version 3, Remove field
+"""
+
+
+v3text : String
+v3text =
+  -- Version 3, Remove field
+  """
 type alias Model =
   { firstName : String
   , lastName : String
   }
 
--- Version 4, Change field type
+"""
+
+
+v4text : String
+v4text =
+  -- Version 4, Change field type
+  """
 type alias Model =
   { firstName : Int
   , lastName : String
   }
 
--- Version 5, Change to sub-record
+"""
+
+
+v5text : String
+v5text =
+  -- Version 5, Change to sub-record
+  """
 type alias Model =
   { firstName : { english : String, jap : String }
   , lastName : String
   }
 
 """
+
+
+t1text : String
+t1text =
+  "type MyUnion = First | Second"
+
+
+t2text : String
+t2text =
+  "type MyUnion = First | Third"
 
 
 type Msg
@@ -82,10 +116,14 @@ testFiles =
 init : ( Model, Cmd Msg )
 init =
   (Package "n/a"
-    [ Item "Custom Editor"
-        (Just sampleModule)
-        (Just <| Ast.parse sampleModule)
-    ]
+    ([ v1text, v2text, v3text, v4text, v5text, t1text, t2text ]
+      |> List.map
+          (\t ->
+            Item "Custom Editor"
+              (Just t)
+              (Just <| Ast.parse t)
+          )
+    )
     :: List.map
         (\( pkg, items ) ->
           Package pkg <|
@@ -203,7 +241,7 @@ statement s =
       withChild s [ expression e ]
 
     s ->
-      code [] [ pre [] [ text <| toString s ] ]
+      div [] [ text <| toString s ]
 
 
 
@@ -432,6 +470,16 @@ v5 =
     )
 
 
+t1 : Statement
+t1 =
+  TypeDeclaration (TypeConstructor [ "MyUnion" ] []) ([ TypeConstructor [ "First" ] [], TypeConstructor [ "Second" ] [] ])
+
+
+t2 : Statement
+t2 =
+  TypeDeclaration (TypeConstructor [ "MyUnion" ] []) ([ TypeConstructor [ "First" ] [], TypeConstructor [ "Third" ] [] ])
+
+
 typeDiff : Type -> Type -> Result String String
 typeDiff t1 t2 =
   if t1 == t2 then
@@ -445,10 +493,16 @@ typeDiff t1 t2 =
               diff =
                 fieldsDiff f1 f2
             in
-              Err <| "Record fields differ:" ++ (toString diff)
+              Err <| "Record type differs:" ++ (toString diff)
+
+          ( TypeConstructor qt1 tl1, TypeConstructor qt2 tl2 ) ->
+            if qt1 /= qt2 then
+              Err <| "Type constructor differs: " ++ toString qt1 ++ " vs " ++ toString qt2
+            else
+              typeDiffList tl1 tl2
 
           ( a, _ ) ->
-            Err <| "Unimplemented comparison: " ++ typeUnionTag a
+            Err <| "Unimplemented comparison: " ++ unionTag a
 
       -- TypeConstructor QualifiedType (List Type) ->
       -- TypeVariable Name ->
@@ -459,19 +513,34 @@ typeDiff t1 t2 =
       -- NamedType Type Name ->
       Nothing ->
         -- @TODO represent a type difference properly
-        Err <| "Record types differ: " ++ typeUnionTag t1 ++ " vs " ++ typeUnionTag t2
+        Err <| "Record types differ: " ++ unionTag t1 ++ " vs " ++ unionTag t2
+
+
+typeDiffList : List Type -> List Type -> Result String String
+typeDiffList tl1 tl2 =
+  List.map2 typeDiff tl1 tl2
+    |> List.find
+        (\x ->
+          case x of
+            Err _ ->
+              True
+
+            Ok _ ->
+              False
+        )
+    |> Maybe.withDefault (Ok "Types are identical")
 
 
 sameToplevelType : a -> b -> Maybe String
 sameToplevelType t1 t2 =
-  if typeUnionTag t1 == typeUnionTag t2 then
-    Just <| typeUnionTag t1
+  if unionTag t1 == unionTag t2 then
+    Just <| unionTag t1
   else
     Nothing
 
 
-typeUnionTag : a -> String
-typeUnionTag t =
+unionTag : a -> String
+unionTag t =
   toString t |> String.split " " |> List.head |> Maybe.withDefault ""
 
 
@@ -485,51 +554,42 @@ typeUnionTag t =
 statementDiff : Statement -> Statement -> Result String String
 statementDiff s1 s2 =
   let
-    t1 =
+    d1 =
       isTypeDeclaration s1
 
-    t2 =
+    d2 =
       isTypeDeclaration s2
   in
-    case ( t1, t2 ) of
-      ( Ok _, Ok _ ) ->
-        if s1 == s2 then
-          Ok "Records types are identical"
-        else
-          let
-            ( c1, t1 ) =
-              case s1 of
-                TypeAliasDeclaration c t ->
-                  ( c, t )
+    if unionTag s1 /= unionTag s2 then
+      Err <| "Cannot compare non-matching union tags: " ++ unionTag s1 ++ " and " ++ unionTag s2
+    else if s1 == s2 then
+      Ok "Records types are identical"
+    else
+      case ( d1, d2 ) of
+        ( Ok (TypeAliasDeclaration c1 t1), Ok (TypeAliasDeclaration c2 t2) ) ->
+          if c1 == c2 then
+            typeDiff t1 t2
+          else
+            Err <| "Constructors are different: " ++ toString c1 ++ " vs " ++ toString c2
 
-                _ ->
-                  Debug.crash "Impossible"
+        ( Ok (TypeDeclaration c1 tl1), Ok (TypeDeclaration c2 tl2) ) ->
+          if c1 == c2 then
+            typeDiffList tl1 tl2
+          else
+            Err <| "Constructors are different: " ++ toString c1 ++ " vs " ++ toString c2
 
-            ( c2, t2 ) =
-              case s2 of
-                TypeAliasDeclaration c t ->
-                  ( c, t )
-
-                _ ->
-                  Debug.crash "Impossible"
-          in
-            if c1 == c2 then
-              typeDiff t1 t2
-            else
-              Err <| "Constructors are different: " ++ toString c1 ++ " vs " ++ toString c2
-
-      ( a, b ) ->
-        Result.andThen (\_ -> a) b
+        ( a, b ) ->
+          Err <| "Unsupported diff types: " ++ toString a ++ ", " ++ toString b
 
 
-isTypeDeclaration : Statement -> Result String String
+isTypeDeclaration : Statement -> Result String Statement
 isTypeDeclaration s =
   case s of
     TypeAliasDeclaration constructor typ ->
-      Ok "Nice"
+      Ok s
 
     TypeDeclaration constructor types ->
-      Ok "Nice"
+      Ok s
 
     ModuleDeclaration _ _ ->
       Err "ModuleDeclaration is not a comparable type"
