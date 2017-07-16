@@ -29,7 +29,7 @@ library
                        , hashable
 
   default-language:    Haskell2010
-  default-extensions:  OverloadedStrings
+  default-extensions:  OverloadedStrings, RecordWildCards
 
 
 executable oak-example

@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module App where
 
 import Oak
