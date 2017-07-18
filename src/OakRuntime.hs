@@ -56,7 +56,7 @@ run =
 
               case handle service of
                 SocketHandle socketHandle -> do
-                  _ <- forkIO $ Hilt.Server.runWebsocket socketHandle
+                  Hilt.Server.runWebsocket socketHandle
                   return ()
 
                 NoHandle -> putStrLn "CmdSocketBroadcast got NoHandle?!"
@@ -69,6 +69,8 @@ run =
           -- Atomically retrieve, update and replace our model
           (model, cmd) <- atomically $ do
             model <- readTVar tModel
+            -- @PERFORMANCE could this trigger excessive STM re-tries for a poorly performing update?
+            -- Or does the channel binding keep this processing syncronous?
             let (newModel, cmd) = update_ app model msg
             writeTVar tModel newModel
             return (newModel, cmd)
