@@ -1,0 +1,49 @@
+name: oak
+version: '0.0.0.1'
+synopsis: A reactive server-side application framework + tookit for Haskell
+description: Please see README.md
+category: Web
+author: Mario Rogic
+maintainer: hello@mario.net.au
+copyright: 2016-present Mario Rogic
+license: GPL-3
+github: supermario/oak
+default-extensions:
+- OverloadedStrings
+- RecordWildCards
+
+dependencies:
+- text
+
+library:
+  source-dirs: src
+  exposed-modules:
+  - Oak
+  - OakRuntime
+  - App
+  dependencies:
+  - base >=4.7 && <5
+  - random
+  - bytestring
+  - stm
+  - slave-thread
+  - unagi-chan
+  - cache
+  - hilt
+  - hashable
+
+executables:
+  oak-example:
+    main: Run.hs
+    source-dirs: examples/
+    dependencies:
+    - base
+    - oak
+  oak-types:
+    main: Evergreen.hs
+    source-dirs: evergreen/
+    dependencies:
+    - base
+    - oak
+    - hilt
+    - haskell-src-exts-simple
