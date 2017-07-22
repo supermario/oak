@@ -39,7 +39,8 @@ type WsReceive msg = (SocketId -> Text -> msg)
 
 data Service = Service
   { handle :: ServiceHandle
-  , kind :: ServiceKinds }
+  , kind :: ServiceKinds
+  }
 
 
 data ServiceKinds = WebSocket | Console deriving (Eq, Enum)

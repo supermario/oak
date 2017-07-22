@@ -135,14 +135,14 @@ getSocketHandle c = do
 subWebsocket :: String -> WsJoined msg -> WsReceive msg -> InChan msg -> IO Service
 subWebsocket _ onJoinedMsg onReceiveMsg chanW = do
   let
-      onJoined :: SocketServer.OnJoined
-      onJoined clientId clientCount = do
-        writeChan chanW $ onJoinedMsg clientId  clientCount
-        return Nothing
+    onJoined :: SocketServer.OnJoined
+    onJoined clientId clientCount = do
+      writeChan chanW $ onJoinedMsg clientId clientCount
+      return Nothing
 
-      onReceive :: SocketServer.OnReceive
-      onReceive clientId text =
-        writeChan chanW $ onReceiveMsg clientId text
+    onReceive :: SocketServer.OnReceive
+    onReceive clientId text =
+      writeChan chanW $ onReceiveMsg clientId text
 
   socketServerH <- SocketServer.loadRaw onJoined onReceive
 

@@ -1,4 +1,4 @@
--- This file has been generated from package.yaml by hpack version 0.15.0.
+-- This file has been generated from package.yaml by hpack version 0.17.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -54,23 +54,5 @@ executable oak-example
       AppSample
   hs-source-dirs:
       examples/
-  default-language: Haskell2010
-  default-extensions: OverloadedStrings RecordWildCards
-
-executable oak-types
-  main-is: Evergreen.hs
-  build-depends:
-      text
-    , base
-    , oak
-    , hilt
-    , haskell-src-exts-simple
-  other-modules:
-      Model
-      ModelA
-      ModelB
-      ModelC
-  hs-source-dirs:
-      evergreen/
   default-language: Haskell2010
   default-extensions: OverloadedStrings RecordWildCards

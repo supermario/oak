@@ -39,11 +39,3 @@ executables:
     dependencies:
     - base
     - oak
-  oak-types:
-    main: Evergreen.hs
-    source-dirs: evergreen/
-    dependencies:
-    - base
-    - oak
-    - hilt
-    - haskell-src-exts-simple
