@@ -56,3 +56,40 @@ executable oak-example
       examples/
   default-language: Haskell2010
   default-extensions: OverloadedStrings RecordWildCards
+
+executable oak-types
+  main-is: Evergreen.hs
+  hs-source-dirs:
+      evergreen/
+  default-extensions: OverloadedStrings RecordWildCards
+  build-depends:
+      text
+    , base
+    , oak
+    , hilt
+    , haskell-src-exts-simple
+    , postgresql-orm
+    , postgresql-simple
+    , bytestring
+  other-modules:
+      Model
+      ModelA
+      ModelB
+      ModelC
+  default-language: Haskell2010
+
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs:
+      test/
+  default-extensions: OverloadedStrings RecordWildCards
+  ghc-options: -Wall
+  build-depends:
+      text
+    , base
+    , hspec
+  other-modules:
+      Evergreen.MigrationSpec
+      Spec
+  default-language: Haskell2010

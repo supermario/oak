@@ -39,3 +39,24 @@ executables:
     dependencies:
     - base
     - oak
+  oak-types:
+    main: Evergreen.hs
+    source-dirs: evergreen/
+    dependencies:
+    - base
+    - oak
+    - hilt
+    - haskell-src-exts-simple
+    - postgresql-orm
+    - postgresql-simple
+    - bytestring
+
+
+tests:
+  test:
+    main: Main.hs
+    source-dirs: test/
+    ghc-options: -Wall
+    dependencies:
+    - base
+    - hspec
