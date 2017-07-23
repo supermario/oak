@@ -4,6 +4,6 @@ import Test.Hspec
 
 spec :: Spec
 spec =
-  describe "Schema" $
-    it "should have specs"
-      False `shouldBe` True
+  describe "a test block" $
+    it "asserts a condition" $
+      True `shouldBe` False
