@@ -50,6 +50,8 @@ executables:
     - postgresql-orm
     - postgresql-simple
     - bytestring
+    - foldl
+    - turtle
 
 
 tests:

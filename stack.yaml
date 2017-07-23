@@ -11,6 +11,9 @@ extra-deps:
 - heroku-persistent-0.2.0
 - postgresql-simple-url-0.1.0.1
 - unagi-chan-0.4.0.0
+- haskell-src-exts-1.19.1
+- haskell-src-exts-simple-1.19.0.0
+- postgresql-orm-0.5.0
 
 flags: {}
 

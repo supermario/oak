@@ -71,11 +71,14 @@ executable oak-types
     , postgresql-orm
     , postgresql-simple
     , bytestring
+    , foldl
+    , turtle
   other-modules:
       Model
       ModelA
       ModelB
       ModelC
+      Schema
   default-language: Haskell2010
 
 test-suite test
