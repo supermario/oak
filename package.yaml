@@ -52,7 +52,9 @@ executables:
     - bytestring
     - foldl
     - turtle
-
+    - time
+    - system-filepath
+    - safe
 
 tests:
   test:

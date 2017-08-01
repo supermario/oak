@@ -73,6 +73,9 @@ executable oak-types
     , bytestring
     , foldl
     , turtle
+    , time
+    , system-filepath
+    , safe
   other-modules:
       Model
       ModelA

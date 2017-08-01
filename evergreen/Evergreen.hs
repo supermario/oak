@@ -17,18 +17,28 @@ import Database.PostgreSQL.Escape (quoteIdent)
 import Database.PostgreSQL.Simple.Types (Query(..))
 import qualified Data.ByteString.Char8 as S8
 
+import Data.Time (getCurrentTime, defaultTimeLocale, formatTime)
+
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 import Debug.Trace
 import Data.Int
 import Turtle
 import qualified Control.Foldl as Fold
 import Model
+import Safe
+
+import Filesystem.Path.CurrentOS (fromText)
 
 
 -- @TODO read from package.yaml using hpack lib
 applicationName :: String
 applicationName = "oak"
+
+
+asText :: Turtle.FilePath -> Text
+asText = format fp
 
 
 main :: IO ()
@@ -64,27 +74,38 @@ main = Hilt.manageOnce $ do
     --
     --   Pending -> putStrLn "Pending migrations"
 
-    let filename = "evergreen/seasons/20170721145900_Schema_A.hs"
+    newSeasonFile <- newSeasonFile
+
 
     s <- evergreenStatus "evergreen/Schema.hs"
     case s of
-      Uninitiated -> do
-        putStrLn $ "Writing first season to " ++ filename
-        writeSeasonAst filename $ astModel "Model" []
+      ChangesPending -> do
+        -- Our Schema.hs has changes to be committed. There may or may not already be a season to compare to.
+        (seasonFile, seasonStatus) <- checkExistingSeason
 
-      Uncommitted -> do
-        writeSeasonAst filename $ astModel "Model_A" []
+        case seasonStatus of
+          Uninitiated -> do
+            -- There are no prior seasons yet, create our first one
+            T.putStrLn $ "Writing first season to " <> asText newSeasonFile
+            writeSeasonAst newSeasonFile $ astModel "Model" []
+            showSeasonChanges newSeasonFile
 
-        putStrLn "Schema changes to be committed:"
-        putStrLn $ "  (season remembered in "++filename++")"
-        putStrLn ""
-        putStrLn "  New record: User"
-        putStrLn ""
-        putStrLn "        added:    User.name        :: String"
-        putStrLn "        added:    User.firstname   :: String"
-        putStrLn "        added:    User.age         :: Int"
-        putStrLn "        added:    User.dateOfBirth :: UTCTime"
-        putStrLn ""
+          ChangesPending -> do
+            -- A season with pending changes exists (unfinished season) so update it
+            T.putStrLn $ "Updating season " <> asText seasonFile
+            writeSeasonAst seasonFile $ astModel "Model" []
+            showSeasonChanges seasonFile
+
+          x -> do
+            -- This shows the changes between last season, and the current Schema
+            -- Changes are written to a new, uncommited season file
+            -- showSeasonChanges
+            T.putStrLn "What next?"
+            print x
+          -- showFirstSeason
+
+      Uninitiated -> putStrLn "There is no Schema.hs!"
+        -- No Schema.hs file exists... should we write a new one?
 
       Committed ->
         putStrLn "Nothing to commit, schema is in season\n"
@@ -95,6 +116,91 @@ main = Hilt.manageOnce $ do
 
       UnexpectedEvergreenStatus ->
         putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
+
+
+
+showSeasonChanges seasonFile = do
+  T.putStrLn ""
+  T.putStrLn ""
+  T.putStrLn ""
+  T.putStrLn "Schema changes to be committed:"
+  T.putStrLn $ "  (season remembered in " <> asText seasonFile <> ")"
+  T.putStrLn ""
+  T.putStrLn "  New record: User"
+  T.putStrLn ""
+  T.putStrLn "        added: User.name        :: String"
+  T.putStrLn "        added: User.firstname   :: String"
+  T.putStrLn "        added: User.age         :: Int"
+  T.putStrLn "        added: User.dateOfBirth :: UTCTime"
+  T.putStrLn ""
+
+
+newSeasonFile :: IO Turtle.FilePath
+newSeasonFile = do
+  currentTime <- getCurrentTime
+
+  let timestamp = formatTime defaultTimeLocale "%Y%m%d%H%M%S" currentTime
+
+  return $ fromText $ "evergreen/seasons/" <> T.pack timestamp <> "_Schema_A.hs"
+
+
+seasonFiles :: IO [Turtle.FilePath]
+seasonFiles = fold (Turtle.find (suffix ".hs") "evergreen/seasons") Fold.revList
+
+
+findlatestSeasonFile :: IO (Maybe Turtle.FilePath)
+findlatestSeasonFile = do
+  seasons <- seasonFiles
+  return $ headMay seasons
+
+
+checkExistingSeason :: IO (Turtle.FilePath, EvergreenStatus)
+checkExistingSeason = do
+  seasons <- seasonFiles
+
+  case seasons of
+    [] -> return ("", Uninitiated) -- No seasons exist
+    seasonFile:xs -> do
+      status <- gitStatus seasonFile
+
+      case status of
+        -- Seasons exist
+        Committed -> return (seasonFile, Committed) -- But the latest one is commited
+        _ -> case xs of -- @TODO what's going on here? Why do we need to check the prior file again...?
+          [] -> return (seasonFile, ChangesPending)
+          y:ys -> do
+            status' <- gitStatus y
+            return (seasonFile, status')
+
+
+
+gitStatus :: Turtle.FilePath -> IO EvergreenStatus
+gitStatus filepath = do
+
+  let p = asText filepath
+
+  print $ "Gitstatus for..." <> p
+  gsPorcelain <- strict $ inshell ("git status --porcelain " <> p) empty
+  print $ firstTwo gsPorcelain
+  case firstTwo gsPorcelain of
+    ('_','_')       -> do
+      -- `git status` is empty, so we need to check if the file is tracked (thus clean) or non-existent
+      gitFiles <- strict $ inshell ("git ls-files " <> p) empty
+      case gitFiles of
+        "" -> return Uninitiated
+        _ -> return Committed
+
+    ('?', _)   -> return ChangesPending -- Untracked, but exists
+    ('A', _)   -> return ChangesPending -- Added, so not yet committed
+    (' ', 'M') -> return ChangesPending -- Modified
+    ('M', ' ') -> return ChangesPending -- Added, so not yet committed
+
+    (' ', 'D') -> return Deleted -- Added, so not yet committed
+
+
+    -- @TODO other statuses other than Uninitiatied
+    -- https://git-scm.com/docs/git-status#_short_format
+    _ ->  return UnexpectedEvergreenStatus
 
 
 lastSeasonFilename :: IO (Maybe Turtle.FilePath)
@@ -111,13 +217,13 @@ evergreenStatus schema = do
       -- `git status` is empty, so we need to check if the file is tracked (thus clean) or non-existent
       gitFiles <- strict $ inshell ("git ls-files " <> schema) empty
       case gitFiles of
-        "" -> return Uninitiated
-        _ -> return Committed
+        "" -> return Uninitiated -- File does not exist
+        _  -> return Committed   -- File is committed and clean
 
-    ('?', _)   -> return Uncommitted -- Untracked, but exists
-    ('A', _)   -> return Uncommitted -- Added, so not yet committed
-    (' ', 'M') -> return Uncommitted -- Modified
-    ('M', ' ') -> return Staged      -- Added, so not yet committed
+    ('?', _)   -> return ChangesPending -- Untracked, but exists
+    ('A', _)   -> return ChangesPending -- Added, so not yet committed
+    (' ', 'M') -> return ChangesPending -- Modified
+    ('M', ' ') -> return ChangesPending -- Added, so not yet committed
 
     (' ', 'D') -> return Deleted -- Added, so not yet committed
 
@@ -130,14 +236,14 @@ evergreenStatus schema = do
 firstTwo :: Text -> (Char, Char)
 firstTwo text = (first, second)
   where
-    part = snd <$> T.uncons text
-    first = fromMaybe '_' $ fst <$> T.uncons text
+    part   = snd <$> T.uncons text
+    first  = fromMaybe '_' $ fst <$> T.uncons text
     second = fromMaybe '_' $ fst <$> (T.uncons =<< part)
 
 
 data EvergreenStatus
   = Uninitiated
-  | Uncommitted
+  | ChangesPending
   | Committed
   | Staged
   | Deleted
@@ -195,8 +301,10 @@ loadModelAst :: String -> IO Module
 loadModelAst modelVersion = fromParseResult <$> parseFile ("evergreen/" ++ modelVersion ++ ".hs")
 
 
-writeSeasonAst :: String -> Module -> IO ()
-writeSeasonAst filename ast = writeFile filename $ prettyPrint ast
+writeSeasonAst :: Turtle.FilePath -> Module -> IO ()
+writeSeasonAst filename ast = writeTextFile filename $ T.pack $ prettyPrint ast
+
+-- writeTextFile seasonFile $ T.pack $ prettyPrint $ astModel "Model_A" []
 
 
 astModel :: String -> [Field] -> Module
