@@ -60,7 +60,7 @@ executable oak-example
 executable oak-types
   main-is: Evergreen.hs
   hs-source-dirs:
-      evergreen/
+      types/
   default-extensions: OverloadedStrings RecordWildCards
   build-depends:
       text
@@ -78,10 +78,6 @@ executable oak-types
     , safe
     , cryptonite
   other-modules:
-      Model
-      ModelA
-      ModelB
-      ModelC
       Schema
   default-language: Haskell2010
 

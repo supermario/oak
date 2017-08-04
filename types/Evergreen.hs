@@ -1,9 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-
 module Main where
 
-import qualified Database.PostgreSQL.Simple     as SQL
+import qualified Database.PostgreSQL.Simple as SQL
 import qualified Hilt
 import qualified Hilt.Postgres
 import Hilt.Handles.Postgres
@@ -22,14 +21,11 @@ import Data.Time (getCurrentTime, defaultTimeLocale, formatTime)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-import Debug.Trace
 import Data.Int
 import Turtle
-import qualified Control.Foldl as Fold
-import Model
-import Safe
-
 import Filesystem.Path.CurrentOS (fromText)
+import qualified Control.Foldl as Fold
+import Safe
 
 import Data.Text.Encoding as E
 import Crypto.Hash
@@ -40,18 +36,6 @@ applicationName :: String
 applicationName = "oak"
 
 
-sha1 :: Text -> Digest SHA1
-sha1 = hash . E.encodeUtf8
-
-
-asText :: Turtle.FilePath -> Text
-asText = format fp
-
-
-tShow :: Show a => a -> Text
-tShow = T.pack . show
-
-
 main :: IO ()
 main = Hilt.manageOnce $ do
 
@@ -60,6 +44,12 @@ main = Hilt.manageOnce $ do
 
   Hilt.program $ do
 
+    let currentModel = "Schema" -- @TODO how will we do this dynamically?
+
+    schemaAst <- loadSchemaAst currentModel
+
+    let schemaSha = tShow $ sha1 $ tShow schemaAst
+
     -- createTable db "model"
     -- addColumn db "model" "name" "varchar(255) not null"
     -- addColumn db "model" "surname" "varchar(255) not null"
@@ -67,12 +57,6 @@ main = Hilt.manageOnce $ do
 
     -- dbInfo <- Hilt.Postgres.dbInfo db
     -- Hilt.Postgres.pp dbInfo
-
-    let currentModel = "Schema" -- @TODO how will we do this dynamically?
-
-    modelAst <- loadModelAst currentModel
-
-    let modelSha = sha1 $ tShow modelAst
 
     -- case dbStatus dbInfo modelAst of
     --   Clean   -> putStrLn "DB is up to date with code"
@@ -87,22 +71,23 @@ main = Hilt.manageOnce $ do
     --
     --   Pending -> putStrLn "Pending migrations"
 
-    newSeasonFile <- newSeasonFile (tShow modelSha)
+    newSeasonFile <- newSeasonFile schemaSha
 
+    schemaStatus <- gitStatus $ fromText "types/Schema.hs"
 
-    schemaStatus <- gitStatus $ fromText "evergreen/Schema.hs"
+    -- There may or may not already be a season to compare to.
+    (seasonFile, seasonStatus) <- checkExistingSeason
+
     case schemaStatus of
-      ChangesPending -> do
+      ChangesPending ->
         -- Our Schema.hs has changes to be committed.
-        -- There may or may not already be a season to compare to.
-        (seasonFile, seasonStatus) <- checkExistingSeason
 
         case seasonStatus of
           Uninitiated -> do
             -- There are no prior seasons yet, create our first one
             T.putStrLn $ "Writing first season to " <> asText newSeasonFile
-            writeSeasonAst newSeasonFile modelAst
-            showSeasonChanges newSeasonFile modelAst
+            writeSeasonAst newSeasonFile schemaAst
+            showSeasonChanges newSeasonFile schemaAst
 
           ChangesPending -> do
             -- A season with pending changes exists (unfinished season) so update it
@@ -111,8 +96,18 @@ main = Hilt.manageOnce $ do
             -- Always remove the currently uncomitted season file to keep as close as possible
             -- to the commit timestamp, as well as always have the correct AST SHA
             rm seasonFile
-            writeSeasonAst newSeasonFile modelAst
-            showSeasonChanges newSeasonFile modelAst
+            writeSeasonAst newSeasonFile schemaAst
+            showSeasonChanges newSeasonFile schemaAst
+
+          Committed -> do
+            seasonSha <- fileAstSha seasonFile
+
+            if schemaSha == seasonSha then
+              T.putStrLn "Schema has not been commited, but already matches a known season. This is bad... you forgot to commit your Schema!"
+            else do
+              T.putStrLn $ "Writing next season to " <> asText newSeasonFile
+              writeSeasonAst newSeasonFile schemaAst
+              showSeasonChanges newSeasonFile schemaAst
 
           x -> do
             -- This shows the changes between last season, and the current Schema
@@ -126,11 +121,13 @@ main = Hilt.manageOnce $ do
         -- No Schema.hs file exists... should we write a new one?
 
       Committed ->
+        -- @TODO even though it's in season, it might not match. Need to diff SHA and test integrity?
+        -- @TODO there are no known seasons and this says it's all good if we're committed
         putStrLn "Nothing to commit, schema is in season\n"
 
       Deleted -> do
-        putStrLn "It looks like evergreen/Schema.hs has been deleted, which seems really bad..."
-        putStrLn "Perhaps you want to `git checkout evergreen/Schema.hs` to restore it?"
+        putStrLn "It looks like types/Schema.hs has been deleted, which seems really bad..."
+        putStrLn "Perhaps you want to `git checkout types/Schema.hs` to restore it?"
 
       UnexpectedEvergreenStatus ->
         putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
@@ -224,12 +221,13 @@ checkExistingSeason = do
 
       case status of
         -- Seasons exist
-        Committed -> pure (seasonFile, Committed) -- But the latest one is commited
-        _ -> case xs of -- @TODO what's going on here? Why do we need to check the prior file again...?
-          [] -> pure (seasonFile, ChangesPending)
-          y:ys -> do
-            status' <- gitStatus y
-            pure (seasonFile, status')
+        x -> pure (seasonFile, x) -- Latest season status
+        -- Committed -> pure (seasonFile, Committed) -- But the latest one is commited
+        -- _ -> case xs of -- @TODO what's going on here? Why do we need to check the prior file again...?
+        --   [] -> pure (seasonFile, ChangesPending)
+        --   y:ys -> do
+        --     status' <- gitStatus y
+        --     pure (seasonFile, status')
 
 
 
@@ -326,8 +324,8 @@ data DbStatus
 type Field = (String, String, Bool)
 
 
-loadModelAst :: String -> IO Module
-loadModelAst modelVersion = fromParseResult <$> parseFile ("evergreen/" ++ modelVersion ++ ".hs")
+loadSchemaAst :: String -> IO Module
+loadSchemaAst modelVersion = fromParseResult <$> parseFile ("types/" ++ modelVersion ++ ".hs")
 
 
 loadFileAst :: Turtle.FilePath -> IO Module
@@ -452,5 +450,31 @@ len         interval hour to minute
 
 -}
 
+fileAstSha :: Turtle.FilePath -> IO Text
+fileAstSha file = do
+  ast <- loadFileAst file
+  pure $ astSha ast
+
+
+astSha :: Module -> Text
+astSha ast = tShow $ sha1 $ tShow ast
+
+
+sha1 :: Text -> Digest SHA1
+sha1 = hash . E.encodeUtf8
+
+
+asText :: Turtle.FilePath -> Text
+asText = format fp
+
+
+tShow :: Show a => a -> Text
+tShow = T.pack . show
+
+
 doNothing :: IO ()
 doNothing = pure ()
+
+
+gs :: MonadIO io => io ()
+gs = stdout $ inshell "git status" empty
