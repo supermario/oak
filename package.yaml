@@ -41,7 +41,7 @@ executables:
     - oak
   oak-types:
     main: Evergreen.hs
-    source-dirs: evergreen/
+    source-dirs: types/
     dependencies:
     - base
     - oak
