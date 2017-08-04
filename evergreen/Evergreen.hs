@@ -90,7 +90,7 @@ main = Hilt.manageOnce $ do
     newSeasonFile <- newSeasonFile (tShow modelSha)
 
 
-    schemaStatus <- evergreenStatus "evergreen/Schema.hs"
+    schemaStatus <- gitStatus $ fromText "evergreen/Schema.hs"
     case schemaStatus of
       ChangesPending -> do
         -- Our Schema.hs has changes to be committed.
@@ -102,7 +102,7 @@ main = Hilt.manageOnce $ do
             -- There are no prior seasons yet, create our first one
             T.putStrLn $ "Writing first season to " <> asText newSeasonFile
             writeSeasonAst newSeasonFile modelAst
-            showSeasonChanges newSeasonFile
+            showSeasonChanges newSeasonFile modelAst
 
           ChangesPending -> do
             -- A season with pending changes exists (unfinished season) so update it
@@ -112,7 +112,7 @@ main = Hilt.manageOnce $ do
             -- to the commit timestamp, as well as always have the correct AST SHA
             rm seasonFile
             writeSeasonAst newSeasonFile modelAst
-            showSeasonChanges newSeasonFile
+            showSeasonChanges newSeasonFile modelAst
 
           x -> do
             -- This shows the changes between last season, and the current Schema
@@ -136,21 +136,45 @@ main = Hilt.manageOnce $ do
         putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
 
 
+showSeasonChanges :: Turtle.FilePath -> Module -> IO ()
+showSeasonChanges seasonFile schemaAst = do
+  lastKnownM <- findLastKnownSeason
 
-showSeasonChanges seasonFile = do
+  case lastKnownM of
+    Nothing -> do
+      let empty = moduleDataDecl $ astModel "Model" []
+
+      showSeasonDiff seasonFile $ diff empty (moduleDataDecl schemaAst)
+
+    Just lastKnownSeason ->
+      if lastKnownSeason == seasonFile then
+        T.putStrLn "The last known season is the same as the new season, which seems impossible. This seems like it must be a bug."
+      else do
+        lastKnownAst <- loadFileAst lastKnownSeason
+
+        showSeasonDiff seasonFile $ diff (moduleDataDecl lastKnownAst) (moduleDataDecl schemaAst)
+
+
+showSeasonDiff :: Turtle.FilePath -> [Diff] -> IO ()
+showSeasonDiff seasonFile changes = do
   T.putStrLn ""
   T.putStrLn ""
   T.putStrLn ""
   T.putStrLn "Schema changes to be committed:"
   T.putStrLn $ "  (season remembered in " <> asText seasonFile <> ")"
   T.putStrLn ""
-  T.putStrLn "  New record: User"
+  T.putStrLn "  New record: XXX"
   T.putStrLn ""
-  T.putStrLn "        added: User.name        :: String"
-  T.putStrLn "        added: User.firstname   :: String"
-  T.putStrLn "        added: User.age         :: Int"
-  T.putStrLn "        added: User.dateOfBirth :: UTCTime"
+  mapM_ (putStrLn . toSeasonDiffText) changes
   T.putStrLn ""
+
+
+toSeasonDiffText :: Diff -> String
+toSeasonDiffText change =
+  case change of
+    -- @TODO respect bool
+    Added   (name, tipe, bool) -> "        added:   " <> name <> " :: " <> tipe
+    Removed (name, tipe, bool) -> "        removed: " <> name <> " :: " <> tipe
 
 
 newSeasonFile :: Text -> IO Turtle.FilePath
@@ -167,10 +191,26 @@ seasonFiles :: IO [Turtle.FilePath]
 seasonFiles = fold (Turtle.find (suffix ".hs") "evergreen/seasons") Fold.revList
 
 
-findlatestSeasonFile :: IO (Maybe Turtle.FilePath)
-findlatestSeasonFile = do
+findLastKnownSeason :: IO (Maybe Turtle.FilePath)
+findLastKnownSeason = do
   seasons <- seasonFiles
-  pure $ headMay seasons
+
+  let toTuple file = do
+        status <- gitStatus file
+        pure (file, status)
+
+  -- We only need to check our last two seasons, as only one may not yet be known (committed)
+  statuses <- mapM toTuple (take 2 seasons)
+
+  case filter (\(_, s) -> s == Committed) statuses of
+    [] -> pure Nothing -- No known seasons
+    (f,s):xs -> pure (Just f) -- Latest known commited season
+
+
+-- findlatestSeasonFile :: IO (Maybe Turtle.FilePath)
+-- findlatestSeasonFile = do
+--   seasons <- seasonFiles
+--   pure $ headMay seasons
 
 
 checkExistingSeason :: IO (Turtle.FilePath, EvergreenStatus)
@@ -222,36 +262,6 @@ gitStatus filepath = do
     _ ->  pure UnexpectedEvergreenStatus
 
 
-lastSeasonFilename :: IO (Maybe Turtle.FilePath)
-lastSeasonFilename =
-  fold (Turtle.find (suffix ".hs") "evergreen/seasons") Fold.last
-
-
-evergreenStatus :: Text -> IO EvergreenStatus
-evergreenStatus schema = do
-  gitStatus <- strict $ inshell ("git status --porcelain " <> schema) empty
-  print $ firstTwo gitStatus
-  case firstTwo gitStatus of
-    ('_','_')       -> do
-      -- `git status` is empty, so we need to check if the file is tracked (thus clean) or non-existent
-      gitFiles <- strict $ inshell ("git ls-files " <> schema) empty
-      case gitFiles of
-        "" -> pure Uninitiated -- File does not exist
-        _  -> pure Committed   -- File is committed and clean
-
-    ('?', _)   -> pure ChangesPending -- Untracked, but exists
-    ('A', _)   -> pure ChangesPending -- Added, so not yet committed
-    (' ', 'M') -> pure ChangesPending -- Modified
-    ('M', ' ') -> pure ChangesPending -- Added, so not yet committed
-
-    (' ', 'D') -> pure Deleted -- Added, so not yet committed
-
-
-    -- @TODO other statuses other than Uninitiatied
-    -- https://git-scm.com/docs/git-status#_short_format
-    _ ->  pure UnexpectedEvergreenStatus
-
-
 firstTwo :: Text -> (Char, Char)
 firstTwo text = (first, second)
   where
@@ -267,7 +277,7 @@ data EvergreenStatus
   | Staged
   | Deleted
   | UnexpectedEvergreenStatus
-  deriving (Show)
+  deriving (Show, Eq)
 
 
 dbStatus :: Hilt.Postgres.DbInfo -> Module -> DbStatus
@@ -318,6 +328,10 @@ type Field = (String, String, Bool)
 
 loadModelAst :: String -> IO Module
 loadModelAst modelVersion = fromParseResult <$> parseFile ("evergreen/" ++ modelVersion ++ ".hs")
+
+
+loadFileAst :: Turtle.FilePath -> IO Module
+loadFileAst filepath = fromParseResult <$> parseFile (T.unpack . asText $ filepath)
 
 
 writeSeasonAst :: Turtle.FilePath -> Module -> IO ()
@@ -378,7 +392,7 @@ fieldDecs d = [("Error:fieldDecs", "Field is not a DataDecl with QualConDecl", F
 
 
 fieldDecltoField :: FieldDecl -> Field
--- Need to transform the Maybe here
+-- @TODO Need to transform the Maybe here
 fieldDecltoField (FieldDecl (Ident name:xs) (TyCon (UnQual (Ident tipe)))) = (name, tipe, False)
 fieldDecltoField _ = ("Error:fieldDecltoField", "Field doens't match shape", False)
 
