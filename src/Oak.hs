@@ -151,8 +151,8 @@ identity = id
 -- Two arguments... needs brackets
 -- (record.attribute) arg1 arg2
 
-(.) :: a -> (a -> b) -> b
-(.) record f = f record
+-- (.) :: a -> (a -> b) -> b
+-- (.) record f = f record
 
 
 debug :: String -> String -> ()

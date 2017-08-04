@@ -55,6 +55,7 @@ executables:
     - time
     - system-filepath
     - safe
+    - cryptonite
 
 tests:
   test:

@@ -31,14 +31,25 @@ import Safe
 
 import Filesystem.Path.CurrentOS (fromText)
 
+import Data.Text.Encoding as E
+import Crypto.Hash
+
 
 -- @TODO read from package.yaml using hpack lib
 applicationName :: String
 applicationName = "oak"
 
 
+sha1 :: Text -> Digest SHA1
+sha1 = hash . E.encodeUtf8
+
+
 asText :: Turtle.FilePath -> Text
 asText = format fp
+
+
+tShow :: Show a => a -> Text
+tShow = T.pack . show
 
 
 main :: IO ()
@@ -57,9 +68,11 @@ main = Hilt.manageOnce $ do
     -- dbInfo <- Hilt.Postgres.dbInfo db
     -- Hilt.Postgres.pp dbInfo
 
-    let currentModel = "ModelA" -- @TODO how will we do this dynamically?
+    let currentModel = "Schema" -- @TODO how will we do this dynamically?
 
     modelAst <- loadModelAst currentModel
+
+    let modelSha = sha1 $ tShow modelAst
 
     -- case dbStatus dbInfo modelAst of
     --   Clean   -> putStrLn "DB is up to date with code"
@@ -74,27 +87,32 @@ main = Hilt.manageOnce $ do
     --
     --   Pending -> putStrLn "Pending migrations"
 
-    newSeasonFile <- newSeasonFile
+    newSeasonFile <- newSeasonFile (tShow modelSha)
 
 
-    s <- evergreenStatus "evergreen/Schema.hs"
-    case s of
+    schemaStatus <- evergreenStatus "evergreen/Schema.hs"
+    case schemaStatus of
       ChangesPending -> do
-        -- Our Schema.hs has changes to be committed. There may or may not already be a season to compare to.
+        -- Our Schema.hs has changes to be committed.
+        -- There may or may not already be a season to compare to.
         (seasonFile, seasonStatus) <- checkExistingSeason
 
         case seasonStatus of
           Uninitiated -> do
             -- There are no prior seasons yet, create our first one
             T.putStrLn $ "Writing first season to " <> asText newSeasonFile
-            writeSeasonAst newSeasonFile $ astModel "Model" []
+            writeSeasonAst newSeasonFile modelAst
             showSeasonChanges newSeasonFile
 
           ChangesPending -> do
             -- A season with pending changes exists (unfinished season) so update it
             T.putStrLn $ "Updating season " <> asText seasonFile
-            writeSeasonAst seasonFile $ astModel "Model" []
-            showSeasonChanges seasonFile
+
+            -- Always remove the currently uncomitted season file to keep as close as possible
+            -- to the commit timestamp, as well as always have the correct AST SHA
+            rm seasonFile
+            writeSeasonAst newSeasonFile modelAst
+            showSeasonChanges newSeasonFile
 
           x -> do
             -- This shows the changes between last season, and the current Schema
@@ -135,13 +153,14 @@ showSeasonChanges seasonFile = do
   T.putStrLn ""
 
 
-newSeasonFile :: IO Turtle.FilePath
-newSeasonFile = do
+newSeasonFile :: Text -> IO Turtle.FilePath
+newSeasonFile sha = do
   currentTime <- getCurrentTime
 
   let timestamp = formatTime defaultTimeLocale "%Y%m%d%H%M%S" currentTime
 
-  return $ fromText $ "evergreen/seasons/" <> T.pack timestamp <> "_Schema_A.hs"
+  -- @TODO suffix needs to be some sort of dynamic
+  pure $ fromText $ "evergreen/seasons/" <> T.pack timestamp <> "_Schema_" <> sha <> ".hs"
 
 
 seasonFiles :: IO [Turtle.FilePath]
@@ -151,7 +170,7 @@ seasonFiles = fold (Turtle.find (suffix ".hs") "evergreen/seasons") Fold.revList
 findlatestSeasonFile :: IO (Maybe Turtle.FilePath)
 findlatestSeasonFile = do
   seasons <- seasonFiles
-  return $ headMay seasons
+  pure $ headMay seasons
 
 
 checkExistingSeason :: IO (Turtle.FilePath, EvergreenStatus)
@@ -159,18 +178,18 @@ checkExistingSeason = do
   seasons <- seasonFiles
 
   case seasons of
-    [] -> return ("", Uninitiated) -- No seasons exist
+    [] -> pure ("", Uninitiated) -- No seasons exist
     seasonFile:xs -> do
       status <- gitStatus seasonFile
 
       case status of
         -- Seasons exist
-        Committed -> return (seasonFile, Committed) -- But the latest one is commited
+        Committed -> pure (seasonFile, Committed) -- But the latest one is commited
         _ -> case xs of -- @TODO what's going on here? Why do we need to check the prior file again...?
-          [] -> return (seasonFile, ChangesPending)
+          [] -> pure (seasonFile, ChangesPending)
           y:ys -> do
             status' <- gitStatus y
-            return (seasonFile, status')
+            pure (seasonFile, status')
 
 
 
@@ -187,20 +206,20 @@ gitStatus filepath = do
       -- `git status` is empty, so we need to check if the file is tracked (thus clean) or non-existent
       gitFiles <- strict $ inshell ("git ls-files " <> p) empty
       case gitFiles of
-        "" -> return Uninitiated
-        _ -> return Committed
+        "" -> pure Uninitiated
+        _ -> pure Committed
 
-    ('?', _)   -> return ChangesPending -- Untracked, but exists
-    ('A', _)   -> return ChangesPending -- Added, so not yet committed
-    (' ', 'M') -> return ChangesPending -- Modified
-    ('M', ' ') -> return ChangesPending -- Added, so not yet committed
+    ('?', _)   -> pure ChangesPending -- Untracked, but exists
+    ('A', _)   -> pure ChangesPending -- Added, so not yet committed
+    (' ', 'M') -> pure ChangesPending -- Modified
+    ('M', ' ') -> pure ChangesPending -- Added, so not yet committed
 
-    (' ', 'D') -> return Deleted -- Added, so not yet committed
+    (' ', 'D') -> pure Deleted -- Added, so not yet committed
 
 
     -- @TODO other statuses other than Uninitiatied
     -- https://git-scm.com/docs/git-status#_short_format
-    _ ->  return UnexpectedEvergreenStatus
+    _ ->  pure UnexpectedEvergreenStatus
 
 
 lastSeasonFilename :: IO (Maybe Turtle.FilePath)
@@ -217,20 +236,20 @@ evergreenStatus schema = do
       -- `git status` is empty, so we need to check if the file is tracked (thus clean) or non-existent
       gitFiles <- strict $ inshell ("git ls-files " <> schema) empty
       case gitFiles of
-        "" -> return Uninitiated -- File does not exist
-        _  -> return Committed   -- File is committed and clean
+        "" -> pure Uninitiated -- File does not exist
+        _  -> pure Committed   -- File is committed and clean
 
-    ('?', _)   -> return ChangesPending -- Untracked, but exists
-    ('A', _)   -> return ChangesPending -- Added, so not yet committed
-    (' ', 'M') -> return ChangesPending -- Modified
-    ('M', ' ') -> return ChangesPending -- Added, so not yet committed
+    ('?', _)   -> pure ChangesPending -- Untracked, but exists
+    ('A', _)   -> pure ChangesPending -- Added, so not yet committed
+    (' ', 'M') -> pure ChangesPending -- Modified
+    ('M', ' ') -> pure ChangesPending -- Added, so not yet committed
 
-    (' ', 'D') -> return Deleted -- Added, so not yet committed
+    (' ', 'D') -> pure Deleted -- Added, so not yet committed
 
 
     -- @TODO other statuses other than Uninitiatied
     -- https://git-scm.com/docs/git-status#_short_format
-    _ ->  return UnexpectedEvergreenStatus
+    _ ->  pure UnexpectedEvergreenStatus
 
 
 firstTwo :: Text -> (Char, Char)
@@ -373,7 +392,7 @@ areDataDecls _        _            = False
 createTable :: Hilt.Handles.Postgres.Handle -> String -> IO ()
 createTable db table = do
   Hilt.Postgres.execute db (tryCreateTableStmt (S8.pack table)) ()
-  return ()
+  pure ()
 
 
 tryCreateTableStmt :: S8.ByteString
@@ -386,13 +405,13 @@ tryCreateTableStmt tableName =
 addColumn :: Hilt.Handles.Postgres.Handle -> String -> String -> String -> IO ()
 addColumn db table column tipe = do
   Hilt.Postgres.execute db (add_column_stmt (S8.pack table) (S8.pack column) (S8.pack tipe)) ()
-  return ()
+  pure ()
 
 
 removeColumn :: Hilt.Handles.Postgres.Handle -> String -> String -> IO ()
 removeColumn db table column = do
   Hilt.Postgres.execute db (drop_column_stmt (S8.pack table) (S8.pack column)) ()
-  return ()
+  pure ()
 
 
 
@@ -418,3 +437,6 @@ kind        varchar(10),
 len         interval hour to minute
 
 -}
+
+doNothing :: IO ()
+doNothing = pure ()

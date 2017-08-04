@@ -76,6 +76,7 @@ executable oak-types
     , time
     , system-filepath
     , safe
+    , cryptonite
   other-modules:
       Model
       ModelA
