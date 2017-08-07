@@ -80,6 +80,11 @@ main = Hilt.manageOnce $ do
     -- There may or may not already be a season to compare to.
     (seasonFile, seasonStatus) <- checkExistingSeason
 
+    let writeAndShowSeason = do
+          writeSeasonAst newSeasonFile schemaAst
+          seasonChanges <- getSeasonChanges newSeasonFile schemaAst
+          showSeasonChanges newSeasonFile seasonChanges
+
     case schemaStatus of
       ChangesPending ->
         -- Our Schema.hs has changes to be committed.
@@ -88,8 +93,7 @@ main = Hilt.manageOnce $ do
           Uninitiated -> do
             -- There are no prior seasons yet, create our first one
             T.putStrLn $ "Writing first season to " <> asText newSeasonFile
-            writeSeasonAst newSeasonFile schemaAst
-            showSeasonChanges newSeasonFile schemaAst
+            writeAndShowSeason
 
           ChangesPending -> do
             -- A season with pending changes exists (unfinished season) so update it
@@ -98,8 +102,7 @@ main = Hilt.manageOnce $ do
             -- Always remove the currently uncomitted season file to keep as close as possible
             -- to the commit timestamp, as well as always have the correct AST SHA
             rm seasonFile
-            writeSeasonAst newSeasonFile schemaAst
-            showSeasonChanges newSeasonFile schemaAst
+            writeAndShowSeason
 
           Committed -> do
             seasonSha <- fileAstSha seasonFile
@@ -108,8 +111,8 @@ main = Hilt.manageOnce $ do
               T.putStrLn "Schema has not been commited, but already matches a known season. This is bad... you forgot to commit your Schema!"
             else do
               T.putStrLn $ "Writing next season to " <> asText newSeasonFile
-              writeSeasonAst newSeasonFile schemaAst
-              showSeasonChanges newSeasonFile schemaAst
+              writeAndShowSeason
+
 
           x -> do
             -- This shows the changes between last season, and the current Schema
@@ -139,32 +142,47 @@ bootstrapEvergreen :: IO ()
 bootstrapEvergreen = mktree "evergreen/seasons"
 
 
-showSeasonChanges :: Turtle.FilePath -> Module -> IO ()
-showSeasonChanges seasonFile schemaAst = do
+type SeasonChanges = (Turtle.FilePath, String, EvergreenRecordStatus, [Diff])
+
+getSeasonChanges :: Turtle.FilePath -> Module -> IO SeasonChanges
+getSeasonChanges seasonFile schemaAst = do
   lastKnownM <- findLastKnownSeason
 
-  case lastKnownM of
-    Nothing -> do
-      let empty = moduleDataDecl $ astModel "Model" []
+  let schemaDecl = moduleDataDecl schemaAst
+      recordName = dataDeclName schemaDecl
+      empty = moduleDataDecl $ astModel "Model" []
 
-      showSeasonDiff seasonFile $ diff empty (moduleDataDecl schemaAst)
+  case lastKnownM of
+    Nothing ->
+      -- There are no prior seasons. We have a creation event.
+      pure (seasonFile, recordName, New, diff empty schemaDecl)
 
     Just lastKnownSeason ->
-      if lastKnownSeason == seasonFile then
+      if lastKnownSeason == seasonFile then do
         T.putStrLn "The last known season is the same as the new season, which seems impossible. This seems like it must be a bug."
+        pure (seasonFile, recordName, New, diff empty schemaDecl)
       else do
         lastKnownAst <- loadFileAst lastKnownSeason
 
-        showSeasonDiff seasonFile $ diff (moduleDataDecl lastKnownAst) (moduleDataDecl schemaAst)
+        let lastDecl   = moduleDataDecl lastKnownAst
+
+        pure (seasonFile, recordName, Updated, diff lastDecl schemaDecl)
 
 
-showSeasonDiff :: Turtle.FilePath -> [Diff] -> IO ()
-showSeasonDiff seasonFile changes = do
+showSeasonChanges :: Turtle.FilePath -> SeasonChanges -> IO ()
+showSeasonChanges seasonFile (filepath, recordName, recordStatus, diff) =
+  showSeasonDiff filepath recordName recordStatus diff
+
+
+showSeasonDiff :: Turtle.FilePath -> String -> EvergreenRecordStatus -> [Diff] -> IO ()
+showSeasonDiff seasonFile recordName recordStatus changes = do
   T.putStrLn ""
   T.putStrLn ""
   T.putStrLn ""
   T.putStrLn "Schema changes to be committed:"
   T.putStrLn $ "  (season remembered in " <> asText seasonFile <> ")"
+  T.putStrLn ""
+  T.putStrLn $ "  " <> T.pack (show recordStatus) <> " record: " <> T.pack recordName
   T.putStrLn ""
   mapM_ (putStrLn . toSeasonDiffText) changes
   T.putStrLn ""
@@ -282,6 +300,12 @@ data EvergreenStatus
   deriving (Show, Eq)
 
 
+data EvergreenRecordStatus
+  = New
+  | Updated
+  deriving (Show, Eq)
+
+
 dbStatus :: Hilt.Postgres.DbInfo -> Module -> DbStatus
 dbStatus dbInfo ast = do
 
@@ -323,11 +347,6 @@ data DbStatus
   deriving (Show)
 
 
--- @TODO make this typesafe
--- (name, type)
-type Field = (String, String, Bool)
-
-
 loadSchemaAst :: String -> IO Module
 loadSchemaAst modelVersion = fromParseResult <$> parseFile ("types/" ++ modelVersion ++ ".hs")
 
@@ -359,6 +378,9 @@ astModel name fields = do
         Nothing
     ]
 
+-- @TODO make this typesafe
+-- (name, type, nullable)
+type Field = (String, String, Bool)
 
 data Diff
   = Added Field
@@ -402,6 +424,12 @@ fieldDecltoField _ = ("Error:fieldDecltoField", "Field doens't match shape", Fal
 areDataDecls :: Decl -> Decl -> Bool
 areDataDecls DataDecl{} DataDecl{} = True
 areDataDecls _        _            = False
+
+dataDeclName :: Decl -> String
+dataDeclName (DataDecl _ _ _ (QualConDecl Nothing Nothing (RecDecl (Ident name) _):xs) _)
+  = name
+dataDeclName d = "Error: Decl is not a DataDecl type: " ++ show d
+
 
 
 
