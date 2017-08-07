@@ -44,6 +44,8 @@ main = Hilt.manageOnce $ do
 
   Hilt.program $ do
 
+    bootstrapEvergreen
+
     let currentModel = "Schema" -- @TODO how will we do this dynamically?
 
     schemaAst <- loadSchemaAst currentModel
@@ -131,6 +133,10 @@ main = Hilt.manageOnce $ do
 
       UnexpectedEvergreenStatus ->
         putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
+
+
+bootstrapEvergreen :: IO ()
+bootstrapEvergreen = mktree "evergreen/seasons"
 
 
 showSeasonChanges :: Turtle.FilePath -> Module -> IO ()
