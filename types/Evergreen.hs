@@ -160,8 +160,6 @@ showSeasonDiff seasonFile changes = do
   T.putStrLn "Schema changes to be committed:"
   T.putStrLn $ "  (season remembered in " <> asText seasonFile <> ")"
   T.putStrLn ""
-  T.putStrLn "  New record: XXX"
-  T.putStrLn ""
   mapM_ (putStrLn . toSeasonDiffText) changes
   T.putStrLn ""
 
