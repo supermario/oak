@@ -5,7 +5,6 @@ module Main where
 import qualified Database.PostgreSQL.Simple as SQL
 import qualified Hilt
 import qualified Hilt.Postgres
-import Hilt.Handles.Postgres
 
 import Language.Haskell.Exts.Simple
 import Data.List ((\\), find)
@@ -18,6 +17,7 @@ import qualified Data.ByteString.Char8 as S8
 
 import Data.Time (getCurrentTime, defaultTimeLocale, formatTime)
 
+import Data.Char (toLower)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -46,43 +46,20 @@ main = Hilt.manageOnce $ do
 
     bootstrapEvergreen
 
-    let currentModel = "Schema" -- @TODO how will we do this dynamically?
-
-    schemaAst <- loadSchemaAst currentModel
+    -- @TODO how will we do this dynamically?
+    schemaAst <- loadSchemaAst "Schema"
 
     let schemaSha = tShow $ sha1 $ tShow schemaAst
 
-    -- createTable db "model"
-    -- addColumn db "model" "name" "varchar(255) not null"
-    -- addColumn db "model" "surname" "varchar(255) not null"
-    -- removeColumn db "model" "surname"
-
-    -- dbInfo <- Hilt.Postgres.dbInfo db
-    -- Hilt.Postgres.pp dbInfo
-
-    -- case dbStatus dbInfo modelAst of
-    --   Clean   -> putStrLn "DB is up to date with code"
-    --   Dirty   -> do
-    --     let
-    --       dbModelAst = moduleDataDecl $ dbInfoToAst dbInfo
-    --       codeModelAst = moduleDataDecl modelAst
-    --
-    --     print $ diff dbModelAst codeModelAst
-    --
-    --     putStrLn "Model changed since last blah..."
-    --
-    --   Pending -> putStrLn "Pending migrations"
-
     newSeasonFile <- newSeasonFile schemaSha
-
     schemaStatus <- gitStatus $ fromText "types/Schema.hs"
 
     -- There may or may not already be a season to compare to.
     (seasonFile, seasonStatus) <- checkExistingSeason
 
     let writeAndShowSeason = do
-          writeSeasonAst newSeasonFile schemaAst
           seasonChanges <- getSeasonChanges newSeasonFile schemaAst
+          writeSeasonAst newSeasonFile (addMigrations schemaAst seasonChanges)
           showSeasonChanges newSeasonFile seasonChanges
 
     case schemaStatus of
@@ -136,6 +113,33 @@ main = Hilt.manageOnce $ do
 
       UnexpectedEvergreenStatus ->
         putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
+
+
+
+addMigrations :: Module -> SeasonChanges -> Module
+addMigrations (Module mHead mPragmas mImports mDecls) changes =
+  Module mHead mPragmas mImports (mDecls <> migrationAst changes)
+
+  -- createTable db "model"
+  -- addColumn db "model" "name" "varchar(255) not null"
+  -- addColumn db "model" "surname" "varchar(255) not null"
+  -- removeColumn db "model" "surname"
+
+  -- dbInfo <- Hilt.Postgres.dbInfo db
+  -- Hilt.Postgres.pp dbInfo
+
+  -- case dbStatus dbInfo modelAst of
+  --   Clean   -> putStrLn "DB is up to date with code"
+  --   Dirty   -> do
+  --     let
+  --       dbModelAst = moduleDataDecl $ dbInfoToAst dbInfo
+  --       codeModelAst = moduleDataDecl modelAst
+  --
+  --     print $ diff dbModelAst codeModelAst
+  --
+  --     putStrLn "Model changed since last blah..."
+  --
+  --   Pending -> putStrLn "Pending migrations"
 
 
 bootstrapEvergreen :: IO ()
@@ -319,10 +323,10 @@ dbInfoToAst :: Hilt.Postgres.DbInfo -> Module -- @TODO Maybe Module
 dbInfoToAst dbInfo = do
   let
     target = "model" -- @HARDCODED paramaterise this later
-    predicate TableInfo{..} = tableName == target
+    predicate Hilt.Postgres.TableInfo{..} = tableName == target
 
   case Data.List.find predicate dbInfo of
-    Just TableInfo{..} ->
+    Just Hilt.Postgres.TableInfo{..} ->
       astModel "Model" (fmap fieldInfoToField fields)
 
     Nothing -> astModel "Model" []
@@ -330,8 +334,8 @@ dbInfoToAst dbInfo = do
   -- @TODO cover if database is empty case
 
 
-fieldInfoToField :: FieldInfo -> Field
-fieldInfoToField FieldInfo{..} = (fieldName, tipe, fieldNullable)
+fieldInfoToField :: Hilt.Postgres.FieldInfo -> Field
+fieldInfoToField Hilt.Postgres.FieldInfo{..} = (fieldName, tipe, fieldNullable)
 
   where tipe = case fieldType of
           "character varying(255)" -> "String"
@@ -348,15 +352,18 @@ data DbStatus
 
 
 loadSchemaAst :: String -> IO Module
-loadSchemaAst modelVersion = fromParseResult <$> parseFile ("types/" ++ modelVersion ++ ".hs")
+loadSchemaAst modelVersion =
+  fromParseResult <$> parseFile ("types/" ++ modelVersion ++ ".hs")
 
 
 loadFileAst :: Turtle.FilePath -> IO Module
-loadFileAst filepath = fromParseResult <$> parseFile (T.unpack . asText $ filepath)
+loadFileAst filepath =
+  fromParseResult <$> parseFile (T.unpack . asText $ filepath)
 
 
 writeSeasonAst :: Turtle.FilePath -> Module -> IO ()
-writeSeasonAst filename ast = writeTextFile filename $ T.pack $ prettyPrint ast
+writeSeasonAst filename ast =
+  writeTextFile filename $ T.pack $ prettyPrint ast
 
 -- writeTextFile seasonFile $ T.pack $ prettyPrint $ astModel "Model_A" []
 
@@ -425,15 +432,14 @@ areDataDecls :: Decl -> Decl -> Bool
 areDataDecls DataDecl{} DataDecl{} = True
 areDataDecls _        _            = False
 
+
 dataDeclName :: Decl -> String
 dataDeclName (DataDecl _ _ _ (QualConDecl Nothing Nothing (RecDecl (Ident name) _):xs) _)
   = name
 dataDeclName d = "Error: Decl is not a DataDecl type: " ++ show d
 
 
-
-
-createTable :: Hilt.Handles.Postgres.Handle -> String -> IO ()
+createTable :: Hilt.Postgres.Handle -> String -> IO ()
 createTable db table = do
   Hilt.Postgres.execute db (tryCreateTableStmt (S8.pack table)) ()
   pure ()
@@ -446,18 +452,51 @@ tryCreateTableStmt tableName =
   Query $ S8.concat [ "create table if not exists ", quoteIdent tableName, " ();"]
 
 
-addColumn :: Hilt.Handles.Postgres.Handle -> String -> String -> String -> IO ()
+addColumn :: Hilt.Postgres.Handle -> String -> String -> String -> IO ()
 addColumn db table column tipe = do
   Hilt.Postgres.execute db (add_column_stmt (S8.pack table) (S8.pack column) (S8.pack tipe)) ()
   pure ()
 
 
-removeColumn :: Hilt.Handles.Postgres.Handle -> String -> String -> IO ()
+removeColumn :: Hilt.Postgres.Handle -> String -> String -> IO ()
 removeColumn db table column = do
   Hilt.Postgres.execute db (drop_column_stmt (S8.pack table) (S8.pack column)) ()
   pure ()
 
 
+migrationAst :: SeasonChanges -> [Decl]
+migrationAst (seasonPath, recordName, recordStatus, changes) =
+  [ TypeSig [Ident "migration_X_Y"] (TyList (TyCon (UnQual (Ident "Migration"))))
+  , PatBind
+      (PVar (Ident "migration_X_Y"))
+      (UnGuardedRhs
+         (List (fmap (changeAst recordName) changes)))
+      Nothing
+  ]
+
+
+changeAst :: String -> Diff -> Exp
+changeAst recordName change =
+  case change of
+    Added (name, tipe, nullable) ->
+      App
+        (App (App (Con (UnQual (Ident "AddColumn"))) (Lit (String $ lowercase recordName)))
+           (Lit (String name)))
+        (Lit (String $ sqlType tipe))
+    Removed (name, tipe, nullable) ->
+      App (App (Con (UnQual (Ident "RemoveColumn"))) (Lit (String $ lowercase recordName)))
+        (Lit (String name))
+    Debug debugString ->
+      App (App (Con (UnQual (Ident "Debug"))) (Lit (String "thisIsAnError")))
+        (Lit (String debugString))
+
+
+sqlType :: String -> String
+sqlType tipe =
+  -- @TODO handle nullable
+  case tipe of
+    "String" -> "varchar(255) not null"
+    _ -> "ERROR UNKNOWN TYPE"
 
 
 -- TESTS
@@ -510,3 +549,7 @@ doNothing = pure ()
 
 gs :: MonadIO io => io ()
 gs = stdout $ inshell "git status" empty
+
+
+lowercase :: String -> String
+lowercase = map toLower
