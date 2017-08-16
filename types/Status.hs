@@ -10,11 +10,6 @@ import Language.Haskell.Exts.Simple
 import Data.List ((\\), find)
 import Data.Maybe (fromMaybe)
 
-import Database.PostgreSQL.Migrations
-import Database.PostgreSQL.Escape (quoteIdent)
-import Database.PostgreSQL.Simple.Types (Query(..))
-import qualified Data.ByteString.Char8 as S8
-
 import Data.Time (getCurrentTime, defaultTimeLocale, formatTime)
 
 import Data.Char (toLower)
@@ -31,13 +26,53 @@ import Data.Text.Encoding as E
 import Crypto.Hash
 
 
+-- Internal
+import Migrations
+
+
 -- @TODO read from package.yaml using hpack lib
 applicationName :: String
 applicationName = "oak"
 
 
+migrate :: IO ()
+migrate =
+  Hilt.once $ do
+
+    -- @TODO check if the DB exists and be more helpful
+    db <- Hilt.Postgres.load
+
+    Hilt.program $ do
+
+      dbInfo <- Hilt.Postgres.dbInfo db
+      Hilt.Postgres.pp dbInfo
+
+      case dbInfo of
+        [] -> do
+          putStrLn "Database is empty."
+          displayOrRun "init" db
+
+        _ -> do
+          print $ tShow $ dbInfoToAst dbInfo
+          let dbSha = tShow $ sha1 $ tShow $ dbInfoToAst dbInfo
+
+          T.putStrLn $ "Running migration for DB SHA: " <> dbSha
+          displayOrRun dbSha db
+
+
+displayOrRun version db =
+  case migrationsFor version db of
+    Left err -> do
+      putStrLn err
+      showDbDiff db
+
+    Right migrations -> do
+      sequence_ migrations
+      pure ()
+
+
 main :: IO ()
-main = Hilt.manageOnce $ do
+main = Hilt.once $ do
 
   -- @TODO check if the DB exists and be more helpful
   db <- Hilt.Postgres.load
@@ -118,6 +153,7 @@ main = Hilt.manageOnce $ do
 
 addMigrations :: Module -> SeasonChanges -> Module
 addMigrations (Module mHead mPragmas mImports mDecls) changes =
+  -- @TODO adjust import header here?
   Module mHead mPragmas mImports (mDecls <> migrationAst changes)
 
   -- createTable db "model"
@@ -154,7 +190,7 @@ getSeasonChanges seasonFile schemaAst = do
 
   let schemaDecl = moduleDataDecl schemaAst
       recordName = dataDeclName schemaDecl
-      empty = moduleDataDecl $ astModel "Model" []
+      empty = moduleDataDecl $ astModel "Schema" "Model" []
 
   case lastKnownM of
     Nothing ->
@@ -207,7 +243,7 @@ newSeasonFile sha = do
   let timestamp = formatTime defaultTimeLocale "%Y%m%d%H%M%S" currentTime
 
   -- @TODO suffix needs to be some sort of dynamic
-  pure $ fromText $ "evergreen/seasons/" <> T.pack timestamp <> "_Schema_" <> sha <> ".hs"
+  pure $ fromText $ "evergreen/seasons/Schema_" <> T.pack timestamp <> "_" <> sha <> ".hs"
 
 
 seasonFiles :: IO [Turtle.FilePath]
@@ -322,14 +358,14 @@ dbStatus dbInfo ast = do
 dbInfoToAst :: Hilt.Postgres.DbInfo -> Module -- @TODO Maybe Module
 dbInfoToAst dbInfo = do
   let
-    target = "model" -- @HARDCODED paramaterise this later
+    target = "user" -- @HARDCODED paramaterise this later
     predicate Hilt.Postgres.TableInfo{..} = tableName == target
 
   case Data.List.find predicate dbInfo of
     Just Hilt.Postgres.TableInfo{..} ->
-      astModel "Model" (fmap fieldInfoToField fields)
+      astModel "Schema" "User" (fmap fieldInfoToField fields)
 
-    Nothing -> astModel "Model" []
+    Nothing -> astModel "Schema" "X" []
 
   -- @TODO cover if database is empty case
 
@@ -368,8 +404,8 @@ writeSeasonAst filename ast =
 -- writeTextFile seasonFile $ T.pack $ prettyPrint $ astModel "Model_A" []
 
 
-astModel :: String -> [Field] -> Module
-astModel name fields = do
+astModel :: String -> String -> [Field] -> Module
+astModel moduleName recordName fields = do
   let
     fieldDecls = fmap (\(name, tipe, _) ->
         -- @TODO maybe on bool?
@@ -377,11 +413,11 @@ astModel name fields = do
       ) fields
 
 
-  Module (Just (ModuleHead (ModuleName name) Nothing Nothing)) [] []
+  Module (Just (ModuleHead (ModuleName moduleName) Nothing Nothing)) [] []
     [
       DataDecl
-        DataType Nothing (DHead (Ident name))
-        [QualConDecl Nothing Nothing (RecDecl (Ident name) fieldDecls)]
+        DataType Nothing (DHead (Ident recordName))
+        [QualConDecl Nothing Nothing (RecDecl (Ident recordName) fieldDecls)]
         Nothing
     ]
 
@@ -439,31 +475,6 @@ dataDeclName (DataDecl _ _ _ (QualConDecl Nothing Nothing (RecDecl (Ident name) 
 dataDeclName d = "Error: Decl is not a DataDecl type: " ++ show d
 
 
-createTable :: Hilt.Postgres.Handle -> String -> IO ()
-createTable db table = do
-  Hilt.Postgres.execute db (tryCreateTableStmt (S8.pack table)) ()
-  pure ()
-
-
-tryCreateTableStmt :: S8.ByteString
-                  -- ^ Table name
-                  -> SQL.Query
-tryCreateTableStmt tableName =
-  Query $ S8.concat [ "create table if not exists ", quoteIdent tableName, " ();"]
-
-
-addColumn :: Hilt.Postgres.Handle -> String -> String -> String -> IO ()
-addColumn db table column tipe = do
-  Hilt.Postgres.execute db (add_column_stmt (S8.pack table) (S8.pack column) (S8.pack tipe)) ()
-  pure ()
-
-
-removeColumn :: Hilt.Postgres.Handle -> String -> String -> IO ()
-removeColumn db table column = do
-  Hilt.Postgres.execute db (drop_column_stmt (S8.pack table) (S8.pack column)) ()
-  pure ()
-
-
 migrationAst :: SeasonChanges -> [Decl]
 migrationAst (seasonPath, recordName, recordStatus, changes) =
   [ TypeSig [Ident "migration_X_Y"] (TyList (TyCon (UnQual (Ident "Migration"))))
@@ -499,14 +510,37 @@ sqlType tipe =
     _ -> "ERROR UNKNOWN TYPE"
 
 
+
+showDbDiff db = do
+  schemaAst <- loadSchemaAst "Schema"
+  dbInfo <- Hilt.Postgres.dbInfo db
+
+  print schemaAst
+  print $ dbInfoToAst dbInfo
+
+
+  let
+    dbModelAst = moduleDataDecl $ dbInfoToAst dbInfo
+    codeModelAst = moduleDataDecl schemaAst
+
+  putStrLn "The differences between the DB and the latest Schema are:"
+  print $ diff dbModelAst codeModelAst
+
+
+
 -- TESTS
 
 testSample :: IO ()
-testSample = prettyPrint . fromParseResult <$> parseFile "evergreen/ModelA.hs" >>= putStrLn
+testSample = prettyPrint . fromParseResult <$> parseFile "evergreen/seasons/Schema_20170812141450_be119f5af8585265f8a03acda4d86dfe6eaecb22.hs" >>= putStrLn
 
 
 testAst :: IO ()
-testAst = putStrLn $ prettyPrint $ astModel "ModelA" []
+testAst = putStrLn $ prettyPrint $ astModel "Schema" "ModelA" []
+
+
+testParse :: IO (ParseResult Module)
+testParse = parseFile "evergreen/seasons/Schema_20170812141450_be119f5af8585265f8a03acda4d86dfe6eaecb22.hs"
+
 
 --- Mocks
 

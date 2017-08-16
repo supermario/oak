@@ -16,11 +16,14 @@ dependencies:
 - text
 
 library:
-  source-dirs: src
+  source-dirs:
+  - src
+  - evergreen
   exposed-modules:
   - Oak
   - OakRuntime
   - App
+  - Migrations
   dependencies:
   - base >=4.7 && <5
   - random
@@ -31,6 +34,9 @@ library:
   - cache
   - hilt
   - hashable
+  - postgresql-orm
+  - postgresql-simple
+
 
 executables:
   oak-example:
@@ -40,8 +46,10 @@ executables:
     - base
     - oak
   oak-types:
-    main: Evergreen.hs
-    source-dirs: types/
+    main: Status.hs
+    source-dirs:
+    - types/
+
     dependencies:
     - base
     - oak

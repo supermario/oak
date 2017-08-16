@@ -24,11 +24,20 @@ source-repository head
 library
   hs-source-dirs:
       src
+      evergreen
   exposed-modules:
       Oak
       OakRuntime
       App
+      Migrations
   other-modules:
+      Evergreen
+      HiltPostgres
+      MigrationsXXX
+      Model
+      ModelA
+      ModelB
+      ModelC
       Paths_oak
   build-depends:
       text
@@ -41,6 +50,8 @@ library
     , cache
     , hilt
     , hashable
+    , postgresql-orm
+    , postgresql-simple
   default-language: Haskell2010
   default-extensions: OverloadedStrings RecordWildCards
 
@@ -58,7 +69,7 @@ executable oak-example
   default-extensions: OverloadedStrings RecordWildCards
 
 executable oak-types
-  main-is: Evergreen.hs
+  main-is: Status.hs
   hs-source-dirs:
       types/
   default-extensions: OverloadedStrings RecordWildCards
