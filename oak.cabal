@@ -25,14 +25,15 @@ library
   hs-source-dirs:
       src
       evergreen
+      evergreen/seasons
   exposed-modules:
       Oak
       OakRuntime
       App
       Migrations
+      HiltPostgres
   other-modules:
       Evergreen
-      HiltPostgres
       MigrationsXXX
       Model
       ModelA

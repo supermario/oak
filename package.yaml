@@ -19,11 +19,13 @@ library:
   source-dirs:
   - src
   - evergreen
+  - evergreen/seasons
   exposed-modules:
   - Oak
   - OakRuntime
   - App
   - Migrations
+  - HiltPostgres
   dependencies:
   - base >=4.7 && <5
   - random

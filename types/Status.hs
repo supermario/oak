@@ -132,7 +132,6 @@ main = Hilt.once $ do
               T.putStrLn $ "Writing next season to " <> asText newSeasonFile
               writeAndShowSeason
 
-
           x -> do
             -- This shows the changes between last season, and the current Schema
             -- Changes are written to a new, uncommited season file
@@ -141,13 +140,16 @@ main = Hilt.once $ do
             print x
           -- showFirstSeason
 
-      Uninitiated -> putStrLn "There is no Schema.hs!"
+      Uninitiated -> do
+        putStrLn "Schema not found!"
+        putStrLn "I was looking for types/Schema.hs, but could not find it."
         -- No Schema.hs file exists... should we write a new one?
 
-      Committed ->
+      Committed -> do
         -- @TODO even though it's in season, it might not match. Need to diff SHA and test integrity?
         -- @TODO there are no known seasons and this says it's all good if we're committed
-        putStrLn "Nothing to commit, schema is in season\n"
+        putStrLn "Schema has no new changes.\n"
+        putStrLn "@TODO have not implemented seasons check - might be dirty seasons because you're fiddling\n"
 
       Deleted -> do
         putStrLn "It looks like types/Schema.hs has been deleted, which seems really bad..."
@@ -155,7 +157,6 @@ main = Hilt.once $ do
 
       UnexpectedEvergreenStatus ->
         putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
-
 
 
 addMigrations :: Module -> SeasonChanges -> Module
