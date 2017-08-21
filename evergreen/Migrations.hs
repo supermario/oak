@@ -24,6 +24,7 @@ seasonFromSha sha = case sha of
   _ -> UnknownSeason
 
 
+migrationsFor :: Text -> Hilt.Postgres.Handle -> Either String [IO ()]
 migrationsFor x = seasonMigration (seasonFromSha x)
 
 

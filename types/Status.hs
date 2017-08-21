@@ -5,6 +5,7 @@ module Main where
 import qualified Database.PostgreSQL.Simple as SQL
 import qualified Hilt
 import qualified Hilt.Postgres
+import HiltPostgres -- @TODO remove me
 
 import Language.Haskell.Exts.Simple
 import Data.List ((\\), find)
@@ -42,14 +43,17 @@ migrate =
     -- @TODO check if the DB exists and be more helpful
     db <- Hilt.Postgres.load
 
+
     Hilt.program $ do
+      -- @TODO Temporary while we're testing
+      dropTable db "user"
 
       dbInfo <- Hilt.Postgres.dbInfo db
       Hilt.Postgres.pp dbInfo
 
       case dbInfo of
         [] -> do
-          putStrLn "Database is empty."
+          putStrLn "Database is empty, initialising."
           displayOrRun "init" db
 
         _ -> do
@@ -60,6 +64,7 @@ migrate =
           displayOrRun dbSha db
 
 
+displayOrRun :: Text -> Hilt.Postgres.Handle -> IO ()
 displayOrRun version db =
   case migrationsFor version db of
     Left err -> do
@@ -94,7 +99,9 @@ main = Hilt.once $ do
 
     let writeAndShowSeason = do
           seasonChanges <- getSeasonChanges newSeasonFile schemaAst
-          writeSeasonAst newSeasonFile (addMigrations schemaAst seasonChanges)
+          -- @TODO migrations need to be fixed up here
+          -- writeSeasonAst newSeasonFile (addMigrations schemaAst seasonChanges)
+          writeSeasonAst newSeasonFile schemaAst
           showSeasonChanges newSeasonFile seasonChanges
 
     case schemaStatus of
