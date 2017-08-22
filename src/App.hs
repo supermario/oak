@@ -28,11 +28,14 @@ initial = Model { counter = 0, message = "" }
 
 update :: Model -> Msg -> (Model, Cmd Msg)
 update model@Model{..} msg = case msg of
-  Increment -> (model { counter = counter + 1 }, cmdNone)
+  Increment ->
+    (model { counter = counter + 1 }, cmdNone)
 
-  Decrement -> (model { counter = counter - 1 }, cmdNone)
+  Decrement ->
+    (model { counter = counter - 1 }, cmdNone)
 
-  Noop -> (model, cmdNone)
+  Noop ->
+    (model, cmdNone)
 
   KeyPress key ->
     case key of
@@ -42,9 +45,11 @@ update model@Model{..} msg = case msg of
       "b"  -> (model, socketBroadcast "Testing!")
       _    -> (model, cmdNone)
 
-  SocketJoined socketId clientCount -> (model { message = "User joined!" }, cmdNone)
+  SocketJoined socketId clientCount ->
+    (model { message = "User joined!" }, cmdNone)
 
-  SocketReceive socketId text -> (model { message = text }, cmdNone)
+  SocketReceive socketId text ->
+    (model { message = text }, cmdNone)
 
 
 view :: Model -> String
