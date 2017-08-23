@@ -6,8 +6,7 @@ import HiltPostgres
 import Data.Text (Text)
 import Data.List as List
 
-import qualified Schema_20170821102603_be119f5af8585265f8a03acda4d86dfe6eaecb22
-import qualified Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4
+import qualified Schema_20170823221628_c1474a1f412a2b4bb8f7c24a4ab5b54398825258
 
 import Data.Function ((&))
 (|>) = (&)
@@ -16,15 +15,13 @@ import Data.Function ((&))
 data Season
   = TheBeggining
   | UnknownSeason
-  | Schema_20170821102603_be119f5af8585265f8a03acda4d86dfe6eaecb22
-  | Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4
+  | Schema_20170823221628_c1474a1f412a2b4bb8f7c24a4ab5b54398825258
   deriving (Eq)
 
 
 seasonFromSha :: Text -> Season
 seasonFromSha sha = case sha of
-  "be119f5af8585265f8a03acda4d86dfe6eaecb22" -> Schema_20170821102603_be119f5af8585265f8a03acda4d86dfe6eaecb22
-  "749b2b631d3f5804430de055bd3c0e95bc60d7c4" -> Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4
+  "c1474a1f412a2b4bb8f7c24a4ab5b54398825258" -> Schema_20170823221628_c1474a1f412a2b4bb8f7c24a4ab5b54398825258
   "init" -> TheBeggining
   _ -> UnknownSeason
 
@@ -32,8 +29,8 @@ seasonFromSha sha = case sha of
 orderedMigrations :: Hilt.Postgres.Handle -> [(Season, IO ())]
 orderedMigrations db =
   [ (TheBeggining, pure ())
-  , ( Schema_20170821102603_be119f5af8585265f8a03acda4d86dfe6eaecb22, Schema_20170821102603_be119f5af8585265f8a03acda4d86dfe6eaecb22.migration db)
-  , ( Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4, Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4.migration db)
+  -- , ( Schema_20170821102603_be119f5af8585265f8a03acda4d86dfe6eaecb22, Schema_20170821102603_be119f5af8585265f8a03acda4d86dfe6eaecb22.migration db)
+  -- , ( Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4, Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4.migration db)
   ]
 
 

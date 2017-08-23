@@ -165,7 +165,19 @@ main = Hilt.once $ do
 addMigrations :: Module -> SeasonChanges -> Module
 addMigrations (Module mHead mPragmas mImports mDecls) changes =
   -- @TODO adjust import header here?
-  Module mHead mPragmas mImports (mDecls <> migrationsAst changes)
+  Module mHead mPragmas importDecl (mDecls <> migrationsAst changes)
+  where
+    importDecl =
+      [ ImportDecl
+        { importModule = ModuleName "HiltPostgres"
+        , importQualified = False
+        , importSrc = False
+        , importSafe = False
+        , importPkg = Nothing
+        , importAs = Nothing
+        , importSpecs = Nothing
+        }
+      ]
 
   -- createTable db "model"
   -- addColumn db "model" "name" "varchar(255) not null"
@@ -508,7 +520,7 @@ migrationAst recordName change =
   case change of
     Added (name, tipe, nullable) ->
       Qualifier (App (App (App (App (Var (UnQual (Ident "addColumn"))) (Var (UnQual (Ident "db"))))
-        (Lit (String (lowercase recordName)))) (Lit (String name))) (Lit (String tipe)))
+        (Lit (String (lowercase recordName)))) (Lit (String name))) (Lit (String $ sqlType name tipe)))
 
     Removed (name, tipe, nullable) ->
       Qualifier (App (App (App (Var (UnQual (Ident "removeColumn"))) (Var (UnQual (Ident "db"))))
@@ -519,12 +531,15 @@ migrationAst recordName change =
         (Lit (String (lowercase recordName)))) (Lit (String debugString)))
 
 
-sqlType :: String -> String
-sqlType tipe =
+sqlType :: String -> String -> String
+sqlType name tipe =
   -- @TODO handle nullable
-  case tipe of
-    "String" -> "varchar(255) not null"
-    _ -> "ERROR UNKNOWN TYPE"
+  case name of
+    "id" -> "serial primary key"
+    _ ->
+      case tipe of
+        "String" -> "varchar(255) not null"
+        _ -> "ERROR UNKNOWN TYPE"
 
 
 showDbDiff :: Hilt.Postgres.Handle -> IO ()
@@ -560,7 +575,7 @@ testParse = parseFile "evergreen/seasons/Schema_20170812141450_be119f5af8585265f
 
 writeAst :: IO ()
 writeAst = do
-  ast <- parseFile "/Users/mario/dev/projects/oak/evergreen/seasons/Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4.hs"
+  ast <- parseFile "evergreen/seasons/Schema_20170823220945_c1474a1f412a2b4bb8f7c24a4ab5b54398825258.hs"
   writeTextFile "formattedAst.hs" $ T.pack $ show ast
   stdout $ inshell "hindent --style gibiansky formattedAst.hs" empty
   pure ()
