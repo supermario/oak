@@ -92,17 +92,20 @@ main = Hilt.once $ do
     let schemaSha = tShow $ sha1 $ tShow schemaAst
 
     newSeasonFile <- newSeasonFile schemaSha
+    let newSeasonFilepath = fromText $ "evergreen/seasons/" <> newSeasonFile <> ".hs"
+
+    print newSeasonFilepath
+
     schemaStatus <- gitStatus $ fromText "types/Schema.hs"
 
     -- There may or may not already be a season to compare to.
     (seasonFile, seasonStatus) <- checkExistingSeason
 
     let writeAndShowSeason = do
-          seasonChanges <- getSeasonChanges newSeasonFile schemaAst
-          -- @TODO migrations need to be fixed up here
-          -- writeSeasonAst newSeasonFile (addMigrations schemaAst seasonChanges)
-          writeSeasonAst newSeasonFile schemaAst
-          showSeasonChanges newSeasonFile seasonChanges
+          seasonChanges <- getSeasonChanges newSeasonFilepath schemaAst
+          -- @TODO fixme, crap formatting
+          writeSeasonAst newSeasonFilepath $ adjustModuleName newSeasonFile (addMigrations schemaAst seasonChanges)
+          showSeasonChanges newSeasonFilepath seasonChanges
 
     case schemaStatus of
       ChangesPending ->
@@ -111,7 +114,7 @@ main = Hilt.once $ do
         case seasonStatus of
           Uninitiated -> do
             -- There are no prior seasons yet, create our first one
-            T.putStrLn $ "Writing first season to " <> asText newSeasonFile
+            T.putStrLn $ "Writing first season to " <> asText newSeasonFilepath
             writeAndShowSeason
 
           ChangesPending -> do
@@ -129,7 +132,7 @@ main = Hilt.once $ do
             if schemaSha == seasonSha then
               T.putStrLn "Schema has not been commited, but already matches a known season. This is bad... you forgot to commit your Schema!"
             else do
-              T.putStrLn $ "Writing next season to " <> asText newSeasonFile
+              T.putStrLn $ "Writing next season to " <> asText newSeasonFilepath
               writeAndShowSeason
 
           x -> do
@@ -162,7 +165,7 @@ main = Hilt.once $ do
 addMigrations :: Module -> SeasonChanges -> Module
 addMigrations (Module mHead mPragmas mImports mDecls) changes =
   -- @TODO adjust import header here?
-  Module mHead mPragmas mImports (mDecls <> migrationAst changes)
+  Module mHead mPragmas mImports (mDecls <> migrationsAst changes)
 
   -- createTable db "model"
   -- addColumn db "model" "name" "varchar(255) not null"
@@ -184,6 +187,11 @@ addMigrations (Module mHead mPragmas mImports mDecls) changes =
   --     putStrLn "Model changed since last blah..."
   --
   --   Pending -> putStrLn "Pending migrations"
+
+
+adjustModuleName :: Text -> Module -> Module
+adjustModuleName filename (Module mHead mPragmas mImports mDecls) =
+  Module (Just (ModuleHead (ModuleName (T.unpack filename)) Nothing Nothing)) mPragmas mImports mDecls
 
 
 bootstrapEvergreen :: IO ()
@@ -212,7 +220,7 @@ getSeasonChanges seasonFile schemaAst = do
       else do
         lastKnownAst <- loadFileAst lastKnownSeason
 
-        let lastDecl   = moduleDataDecl lastKnownAst
+        let lastDecl = moduleDataDecl lastKnownAst
 
         pure (seasonFile, recordName, Updated, diff lastDecl schemaDecl)
 
@@ -244,14 +252,13 @@ toSeasonDiffText change =
     Removed (name, tipe, bool) -> "        removed: " <> name <> " :: " <> tipe
 
 
-newSeasonFile :: Text -> IO Turtle.FilePath
+newSeasonFile :: Text -> IO Text
 newSeasonFile sha = do
   currentTime <- getCurrentTime
 
   let timestamp = formatTime defaultTimeLocale "%Y%m%d%H%M%S" currentTime
 
-  -- @TODO suffix needs to be some sort of dynamic
-  pure $ fromText $ "evergreen/seasons/Schema_" <> T.pack timestamp <> "_" <> sha <> ".hs"
+  pure $ "Schema_" <> T.pack timestamp <> "_" <> sha
 
 
 seasonFiles :: IO [Turtle.FilePath]
@@ -402,7 +409,7 @@ loadSchemaAst modelVersion =
 
 loadFileAst :: Turtle.FilePath -> IO Module
 loadFileAst filepath =
-  fromParseResult <$> parseFile (T.unpack . asText $ filepath)
+  fromParseResult <$> parseFile (asString filepath)
 
 
 writeSeasonAst :: Turtle.FilePath -> Module -> IO ()
@@ -456,8 +463,8 @@ diff d1 d2 =
 
 
 moduleDataDecl :: Module -> Decl
-moduleDataDecl (Module (Just (ModuleHead (ModuleName name) Nothing Nothing)) [] [] [dataDecl]) = dataDecl
-moduleDataDecl _ = undefined
+moduleDataDecl (Module (Just (ModuleHead (ModuleName name) Nothing Nothing)) _ _ (dataDecl:xs)) = dataDecl
+moduleDataDecl _ = undefined -- @TODO Fix me with a nicer error!
 
 
 fieldDecs :: Decl -> [Field]
@@ -483,31 +490,33 @@ dataDeclName (DataDecl _ _ _ (QualConDecl Nothing Nothing (RecDecl (Ident name) 
 dataDeclName d = "Error: Decl is not a DataDecl type: " ++ show d
 
 
-migrationAst :: SeasonChanges -> [Decl]
-migrationAst (seasonPath, recordName, recordStatus, changes) =
-  [ TypeSig [Ident "migration_X_Y"] (TyList (TyCon (UnQual (Ident "Migration"))))
-  , PatBind
-      (PVar (Ident "migration_X_Y"))
-      (UnGuardedRhs
-         (List (fmap (changeAst recordName) changes)))
-      Nothing
+migrationsAst :: SeasonChanges -> [Decl]
+migrationsAst (seasonPath, recordName, recordStatus, changes) =
+  [ FunBind
+      [ Match
+          (Ident "migration")
+          [PVar (Ident "db")]
+          (UnGuardedRhs (Do migrations))
+          Nothing
+      ]
   ]
+  where migrations = fmap (migrationAst recordName) changes
 
 
-changeAst :: String -> Diff -> Exp
-changeAst recordName change =
+migrationAst :: String -> Diff -> Stmt
+migrationAst recordName change =
   case change of
     Added (name, tipe, nullable) ->
-      App
-        (App (App (Con (UnQual (Ident "AddColumn"))) (Lit (String $ lowercase recordName)))
-           (Lit (String name)))
-        (Lit (String $ sqlType tipe))
+      Qualifier (App (App (App (App (Var (UnQual (Ident "addColumn"))) (Var (UnQual (Ident "db"))))
+        (Lit (String (lowercase recordName)))) (Lit (String name))) (Lit (String tipe)))
+
     Removed (name, tipe, nullable) ->
-      App (App (Con (UnQual (Ident "RemoveColumn"))) (Lit (String $ lowercase recordName)))
-        (Lit (String name))
+      Qualifier (App (App (App (Var (UnQual (Ident "removeColumn"))) (Var (UnQual (Ident "db"))))
+        (Lit (String (lowercase recordName)))) (Lit (String name)))
+
     Debug debugString ->
-      App (App (Con (UnQual (Ident "Debug"))) (Lit (String "thisIsAnError")))
-        (Lit (String debugString))
+      Qualifier (App (App (App (Var (UnQual (Ident "ERROR"))) (Var (UnQual (Ident "ERROR"))))
+        (Lit (String (lowercase recordName)))) (Lit (String debugString)))
 
 
 sqlType :: String -> String
@@ -518,7 +527,7 @@ sqlType tipe =
     _ -> "ERROR UNKNOWN TYPE"
 
 
-
+showDbDiff :: Hilt.Postgres.Handle -> IO ()
 showDbDiff db = do
   schemaAst <- loadSchemaAst "Schema"
   dbInfo <- Hilt.Postgres.dbInfo db
@@ -535,7 +544,6 @@ showDbDiff db = do
   print $ diff dbModelAst codeModelAst
 
 
-
 -- TESTS
 
 testSample :: IO ()
@@ -548,6 +556,14 @@ testAst = putStrLn $ prettyPrint $ astModel "Schema" "ModelA" []
 
 testParse :: IO (ParseResult Module)
 testParse = parseFile "evergreen/seasons/Schema_20170812141450_be119f5af8585265f8a03acda4d86dfe6eaecb22.hs"
+
+
+writeAst :: IO ()
+writeAst = do
+  ast <- parseFile "/Users/mario/dev/projects/oak/evergreen/seasons/Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4.hs"
+  writeTextFile "formattedAst.hs" $ T.pack $ show ast
+  stdout $ inshell "hindent --style gibiansky formattedAst.hs" empty
+  pure ()
 
 
 --- Mocks
@@ -580,6 +596,8 @@ sha1 = hash . E.encodeUtf8
 asText :: Turtle.FilePath -> Text
 asText = format fp
 
+asString :: Turtle.FilePath -> String
+asString = T.unpack . asText
 
 tShow :: Show a => a -> Text
 tShow = T.pack . show
