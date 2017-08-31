@@ -39,6 +39,7 @@ library
       ModelA
       ModelB
       ModelC
+      Schema_20170823221628_c1474a1f412a2b4bb8f7c24a4ab5b54398825258
       Paths_oak
   build-depends:
       text

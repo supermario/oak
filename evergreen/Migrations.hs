@@ -12,48 +12,37 @@ import Data.Function ((&))
 (|>) = (&)
 
 
-data Season
-  = TheBeggining
-  | UnknownSeason
-  | Schema_20170823221628_c1474a1f412a2b4bb8f7c24a4ab5b54398825258
-  deriving (Eq)
-
-
-seasonFromSha :: Text -> Season
-seasonFromSha sha = case sha of
-  "c1474a1f412a2b4bb8f7c24a4ab5b54398825258" -> Schema_20170823221628_c1474a1f412a2b4bb8f7c24a4ab5b54398825258
-  "init" -> TheBeggining
-  _ -> UnknownSeason
-
-
-orderedMigrations :: Hilt.Postgres.Handle -> [(Season, IO ())]
-orderedMigrations db =
-  [ (TheBeggining, pure ())
-  -- , ( Schema_20170821102603_be119f5af8585265f8a03acda4d86dfe6eaecb22, Schema_20170821102603_be119f5af8585265f8a03acda4d86dfe6eaecb22.migration db)
-  -- , ( Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4, Schema_20170821103234_749b2b631d3f5804430de055bd3c0e95bc60d7c4.migration db)
+allMigrations :: [(Text, Hilt.Postgres.Handle -> IO ())]
+allMigrations =
+  [ ("init", noMigration)
+  , ( "c1474a1f412a2b4bb8f7c24a4ab5b54398825258"
+    , Schema_20170823221628_c1474a1f412a2b4bb8f7c24a4ab5b54398825258.migration
+    )
   ]
+
+noMigration db = pure ()
 
 
 migrationsFor :: Text -> Hilt.Postgres.Handle -> Either String [IO ()]
-migrationsFor x = seasonMigration (seasonFromSha x)
+migrationsFor sha db = case sha of
+  "init" -> Right $ fmap (\(s, m) -> m db) allMigrations
+  _      -> seasonMigration sha db
 
 
-seasonMigration :: Season -> Hilt.Postgres.Handle -> Either String [IO ()]
-seasonMigration season db =
-  case season of
-    UnknownSeason ->
-      Left "Unknown season! No migrations run."
-
-    _ -> do
-      let migrations = migrationsOnwardFrom season db
-
-      case migrations of
-        [] -> Right [putStrLn "Migrations up to date."]
-        _ -> Right migrations
+migrationExists :: Text -> Bool
+migrationExists dbSha = any ((==dbSha) . fst) allMigrations
 
 
-migrationsOnwardFrom season db = do
-  let indexM = List.findIndex ((== season) . fst) (orderedMigrations db)
+seasonMigration :: Text -> Hilt.Postgres.Handle -> Either String [IO ()]
+seasonMigration season db = case migrationsOnwardFrom season of
+  Nothing         -> Left "Unknown season! No migrations run."
+  Just []         -> Right [putStrLn "Migrations up to date."]
+  Just migrations -> Right (fmap (\m -> m db) migrations)
+
+
+migrationsOnwardFrom :: Text -> Maybe [Hilt.Postgres.Handle -> IO ()]
+migrationsOnwardFrom season = do
+  let indexM = List.findIndex ((==season) . fst) allMigrations
   case indexM of
-    Nothing -> []
-    Just index -> snd <$> List.drop (index + 1) (orderedMigrations db)
+    Nothing    -> Nothing
+    Just index -> Just $ snd <$> List.drop (index + 1) allMigrations

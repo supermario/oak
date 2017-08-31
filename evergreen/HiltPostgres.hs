@@ -22,11 +22,9 @@ createTable db table = do
   pure ()
 
 
-tryCreateTableStmt :: S8.ByteString
-                  -- ^ Table name
-                  -> SQL.Query
-tryCreateTableStmt tableName =
-  Query $ S8.concat [ "create table if not exists ", quoteIdent tableName, " ();"]
+-- Do we really want a try? Would we rather things failed?
+tryCreateTableStmt :: S8.ByteString -> SQL.Query
+tryCreateTableStmt tableName = Query $ S8.concat ["create table if not exists ", quoteIdent tableName, " ();"]
 
 
 addColumn :: Hilt.Postgres.Handle -> String -> String -> String -> IO ()
@@ -46,5 +44,10 @@ removeColumn db table column = do
 dropTable :: Hilt.Postgres.Handle -> String -> IO ()
 dropTable db table = do
   putStrLn $ "db: dropping " <> table
-  Hilt.Postgres.execute db (drop_table_stmt (S8.pack table)) ()
+  Hilt.Postgres.execute db (tryDropTableStmt (S8.pack table)) ()
   pure ()
+
+
+-- Do we really want a try? Would we rather things failed?
+tryDropTableStmt :: S8.ByteString -> SQL.Query
+tryDropTableStmt tableName = Query $ S8.concat ["drop table if exists ", quoteIdent tableName, ";"]
