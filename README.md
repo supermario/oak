@@ -31,6 +31,8 @@ subscriptions = [onKeyEnter Increment]
 
 See the [examples](examples) folder for more complex examples, including a websocket server.
 
+Currently `oak` only supports a very basic CLI app, which will always "re-render" regardless of the nature of Model changes.
+
 ### Features
 
 You can do anything you can do with Haskell (or even just use Oak in one area of an existing Haskell app).
@@ -46,7 +48,7 @@ Future things that may be explored are:
 - database querying (Postgres)
 - HTTP endpoints
 
-A design goal is to have an exception-free experience
+A design goal is to have an exception-free experience.
 
 ### Guides (TBC)
 
