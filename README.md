@@ -1,7 +1,7 @@
 
 :warning: Oak is in an experimental stage
 
-**Oak is a server-side application framework + full-stack toolkit for using Haskell and Elm**
+**Oak is a minimal server-side application framework inspired by Elm and The Elm Architecture**
 
 See [motivations](docs/motivations.md) for comparisons with other approaches.
 
@@ -29,23 +29,29 @@ view = show
 subscriptions = [onKeyEnter Increment]
 ```
 
-See the [examples](examples) folder for more complex examples.
+See the [examples](examples) folder for more complex examples, including a websocket server.
 
 ### Features
 
-You can do anything you can do with Haskell, but Oak directly provides:
+You can do anything you can do with Haskell (or even just use Oak in one area of an existing Haskell app).
 
-- An app framework and architecture (mirroring The Elm Architecture)
--
+Oak itself directly provides:
 
-Future plans include:
+- A reactive app architecture (mirroring The Elm Architecture)
+- Effect managers that work with that Architecture
 
-- Tasks for reading and writing files
-- Database querying (Postgres)
+Future things that may be explored are:
 
+- reading and writing system files
+- database querying (Postgres)
+- HTTP endpoints
 
-### Guides
+A design goal is to have an exception-free experience
+
+### Guides (TBC)
 
 - New to FP
 - Coming from Elm
 - Coming from Haskell
+
+### Installation (TBC)
