@@ -1,4 +1,4 @@
-module App where
+module AppSample where
 
 import Oak
 import Data.Text (Text)
