@@ -1,5 +1,5 @@
 
-:warning: Oak is in an experimental stage
+:warning: Oak is in an experimental stage, it is unreleased
 
 **Oak is a minimal server-side application framework inspired by Elm and The Elm Architecture**
 
