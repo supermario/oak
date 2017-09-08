@@ -26,9 +26,16 @@ import Safe
 import Data.Text.Encoding as E
 import Crypto.Hash
 
+import Data.Function ((&))
 
 -- Internal
-import Migrations
+import Migrations (allMigrations)
+import MigrationHelpers (migrationExists, migrationsFor)
+
+(|>) = (&)
+
+main :: IO ()
+main = putStrLn "Nope!"
 
 
 -- @TODO read from package.yaml using hpack lib
@@ -61,7 +68,7 @@ migrate = Hilt.once $ do
         let dbSha = tShow $ sha1 $ tShow $ dbInfoToAst dbInfo
 
         -- to search for a migration file (so migration listing in Migrations.hs) containing that SHA ✅
-        if migrationExists dbSha
+        if migrationExists allMigrations dbSha
           then do
             -- and if found get the migrations from that SHA onwards ✅
             T.putStrLn $ "Running migration for DB SHA: " <> dbSha
@@ -77,7 +84,7 @@ migrate = Hilt.once $ do
 
 
 displayOrRun :: Text -> Hilt.Postgres.Handle -> IO ()
-displayOrRun version db = case migrationsFor version db of
+displayOrRun version db = case migrationsFor allMigrations version db of
   Left err -> do
     putStrLn err
     showDbDiff db
@@ -87,8 +94,8 @@ displayOrRun version db = case migrationsFor version db of
     pure ()
 
 
-main :: IO ()
-main = Hilt.once $ do
+status :: IO ()
+status = Hilt.once $ do
 
   -- @TODO check if the DB exists and be more helpful
   db <- Hilt.Postgres.load
@@ -101,12 +108,8 @@ main = Hilt.once $ do
     schemaAst <- loadSchemaAst "Schema"
 
     let schemaSha = tShow $ sha1 $ tShow schemaAst
-
     newSeasonFile <- newSeasonFile schemaSha
     let newSeasonFilepath = fromText $ "evergreen/seasons/" <> newSeasonFile <> ".hs"
-
-    print newSeasonFilepath
-
     schemaStatus               <- gitStatus $ fromText "types/Schema.hs"
 
     -- There may or may not already be a season to compare to.
@@ -119,9 +122,8 @@ main = Hilt.once $ do
           showSeasonChanges newSeasonFilepath seasonChanges
 
     case schemaStatus of
-      ChangesPending ->
-        -- Our Schema.hs has changes to be committed.
-                        case seasonStatus of
+      -- Our Schema.hs has changes to be committed.
+      ChangesPending -> case seasonStatus of
         Uninitiated -> do
           -- There are no prior seasons yet, create our first one
           T.putStrLn $ "Writing first season to " <> asText newSeasonFilepath
