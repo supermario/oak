@@ -43,7 +43,7 @@ run = Hilt.manage $ Hilt.program $ do
           x <- getChar
           writeChan chanW $ onKeypress [x]
 
-        return ()
+        pure ()
 
       SubWebsocket path onJoined onReceive -> serviceOrCreate c WebSocket $ do
         service <- subWebsocket path onJoined onReceive chanW
@@ -53,7 +53,7 @@ run = Hilt.manage $ Hilt.program $ do
         case handle service of
           SocketHandle socketHandle -> do
             Hilt.Server.runWebsocket socketHandle
-            return ()
+            pure ()
 
           NoHandle -> putStrLn "CmdSocketBroadcast got NoHandle?!"
     )
@@ -71,7 +71,7 @@ run = Hilt.manage $ Hilt.program $ do
         -- Or does the channel binding keep this processing syncronous?
         let (newModel, cmd) = update_ app model msg
         writeTVar tModel newModel
-        return (newModel, cmd)
+        pure (newModel, cmd)
 
       -- Display our current state
       putStrLn $ view_ app model
@@ -91,7 +91,7 @@ runCmd c cmd = case cmd of
     sleep milliseconds
     runCmd c cmd_
 
-  CmdNone -> return ()
+  CmdNone -> pure ()
 
     -- These exist for reference but are TBC
     -- import System.Exit        (exitSuccess, exitFailure)
@@ -103,7 +103,7 @@ serviceOrCreate :: ServiceCache -> ServiceKinds -> IO () -> IO ()
 serviceOrCreate c serviceKind create = do
   serviceM <- Cache.lookup c serviceKind
   case serviceM of
-    Just _  -> return ()
+    Just _  -> pure ()
     Nothing -> create
 
 
@@ -120,10 +120,10 @@ getSocketHandle c = do
   serviceLookup <- Cache.lookup c WebSocket
   case serviceLookup of
     Just service -> case handle service of
-      SocketHandle socketHandle -> return $ Just socketHandle
-      NoHandle                  -> return Nothing
+      SocketHandle socketHandle -> pure $ Just socketHandle
+      NoHandle                  -> pure Nothing
 
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
 
 
 subWebsocket :: String -> WsJoined msg -> WsReceive msg -> InChan msg -> IO Service
@@ -131,14 +131,14 @@ subWebsocket _ onJoinedMsg onReceiveMsg chanW = do
   let onJoined :: SocketServer.OnJoined
       onJoined clientId clientCount = do
         writeChan chanW $ onJoinedMsg clientId clientCount
-        return Nothing
+        pure Nothing
 
       onReceive :: SocketServer.OnReceive
       onReceive clientId text = writeChan chanW $ onReceiveMsg clientId text
 
   socketServerH <- SocketServer.loadRaw onJoined onReceive
 
-  return Service
+  pure Service
     { handle = SocketHandle socketServerH
     , kind   = WebSocket
     }
@@ -149,7 +149,7 @@ worker chan handler = do
   _ <- ST.fork $ forever $ do
     text <- readChan chan
     handler text
-  return ()
+  pure ()
 
 
 sleep :: Int -> IO ()
