@@ -32,8 +32,8 @@ library
       App
       Migrations
       HiltPostgres
-  other-modules:
       MigrationHelpers
+  other-modules:
       MigrationsXXX
       Model
       ModelA

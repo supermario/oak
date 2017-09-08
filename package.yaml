@@ -26,6 +26,7 @@ library:
   - App
   - Migrations
   - HiltPostgres
+  - MigrationHelpers
   dependencies:
   - base >=4.7 && <5
   - random

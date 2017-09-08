@@ -49,7 +49,6 @@ migrate = Hilt.once $ do
     -- @TODO check if the DB exists and be more helpful
   db <- Hilt.Postgres.load
 
-
   Hilt.program $ do
     -- @TODO Temporary while we're testing
     dropTable db "user"
