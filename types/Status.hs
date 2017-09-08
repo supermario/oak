@@ -63,33 +63,34 @@ migrate = Hilt.once $ do
         displayOrRun "init" db
 
       _ -> do
-        print $ tShow $ dbInfoToAst dbInfo
-        -- Next we need to have the migrate function, which looks at the DB and gets a SHA ✅
+        -- Look at the DB schema and generate a SHA that identifies its AST
         let dbSha = tShow $ sha1 $ tShow $ dbInfoToAst dbInfo
 
-        -- to search for a migration file (so migration listing in Migrations.hs) containing that SHA ✅
+        -- Check if this SHA is a known season amongst our current migrations
         if migrationExists allMigrations dbSha
-          then do
-            -- and if found get the migrations from that SHA onwards ✅
-            T.putStrLn $ "Running migration for DB SHA: " <> dbSha
-            displayOrRun dbSha db
-          else T.putStrLn $ "Error: database current state of " <> dbSha <> " does not match any known seasons!"
-          -- otherwise, the application should quit
+          -- Ok, lets go ahead and try to process the migration from the current SHA onwards
+          then displayOrRun dbSha db
+          else do
+            -- @TODO How can we make these messages more user friendly?
+            T.putStrLn $ "Error: database current state of " <> dbSha <> " does not match any known seasons."
+            T.putStrLn "It's not safe to proceed, so I'm bailing out!"
 
 
-          -- Something like
-          -- Hilt.evergreen $ do
-          -- Could do the magic to handle this under the hood
-
+-- Something like
+-- Hilt.evergreen $ do
+-- Could do the magic to handle this under the hood
+-- Or perhaps even better, an Evergreen version of the postgres service, that does this on load?
+-- db <- Hilt.Evergreen.load
 
 
 displayOrRun :: Text -> Hilt.Postgres.Handle -> IO ()
-displayOrRun version db = case migrationsFor allMigrations version db of
+displayOrRun dbSha db = case migrationsFor allMigrations dbSha db of
   Left err -> do
-    putStrLn err
+    T.putStrLn err
     showDbDiff db
 
   Right migrations -> do
+    T.putStrLn $ "Fetching migrations for DB SHA: " <> dbSha
     sequence_ migrations
     pure ()
 
