@@ -57,14 +57,13 @@ migrate = Hilt.once $ do
 
       _ -> do
         print $ tShow $ dbInfoToAst dbInfo
-        -- Next we need to have the migrate function, which looks at the DB and gets a SHA
+        -- Next we need to have the migrate function, which looks at the DB and gets a SHA ✅
         let dbSha = tShow $ sha1 $ tShow $ dbInfoToAst dbInfo
 
-        -- to search for a migration file containing that SHA,
-
-        -- and if found get the migrations from that SHA onwards
+        -- to search for a migration file (so migration listing in Migrations.hs) containing that SHA ✅
         if migrationExists dbSha
           then do
+            -- and if found get the migrations from that SHA onwards ✅
             T.putStrLn $ "Running migration for DB SHA: " <> dbSha
             displayOrRun dbSha db
           else T.putStrLn $ "Error: database current state of " <> dbSha <> " does not match any known seasons!"
@@ -397,11 +396,17 @@ fieldInfoToField :: Hilt.Postgres.FieldInfo -> Field
 fieldInfoToField Hilt.Postgres.FieldInfo {..} = (fieldName, tipe, fieldNullable)
  where
   tipe = case fieldType of
-    "character varying(255)" -> "String"
+    "character varying(255)" ->
+      "String"
           -- @TODO handle various postgres types
           -- @TODO go steal the definitions from Persistent
           -- https://github.com/yesodweb/persistent/wiki/Persistent-entity-syntax
 
+    "integer" ->
+      "Int"
+
+          -- @TODO ERROR: have a wildcard to catch exceptions...? Or throw exception?
+    _ -> "UnknownField"
 
 data DbStatus
   = Clean
@@ -427,10 +432,8 @@ writeSeasonAst filename ast = writeTextFile filename $ T.pack $ prettyPrint ast
 astModel :: String -> String -> [Field] -> Module
 astModel moduleName recordName fields = do
   let fieldDecls =
-        fmap (\(name, tipe, _) ->
-          -- @TODO maybe on bool?
-                                  FieldDecl [Ident name] (TyCon (UnQual (Ident tipe)))) fields
-
+        -- @TODO handle Maybe types on bool?
+        fmap (\(name, tipe, _) -> FieldDecl [Ident name] (TyCon (UnQual (Ident tipe)))) fields
 
   Module
     (Just (ModuleHead (ModuleName moduleName) Nothing Nothing))
