@@ -92,7 +92,9 @@ executable oak-types
     , safe
     , cryptonite
   other-modules:
+      MigrationsAst
       Schema
+      ShellHelpers
   default-language: Haskell2010
 
 test-suite test
