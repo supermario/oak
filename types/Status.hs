@@ -5,7 +5,7 @@ module Main where
 import qualified Database.PostgreSQL.Simple as SQL
 import qualified Hilt
 import qualified Hilt.Postgres
-import HiltPostgres -- @TODO remove me
+import HiltPostgres -- @TODO remove me when done with DB mocking tests
 
 import Language.Haskell.Exts.Simple
 import Data.List ((\\), find)
@@ -540,10 +540,9 @@ migrationStmt recordName change = case change of
     )
 
 
+-- @TODO handle nullable
 sqlType :: String -> String -> String
-sqlType name tipe =
-  -- @TODO handle nullable
-                    case name of
+sqlType name tipe = case name of
   "id" -> "serial primary key"
   _    -> case tipe of
     "String" -> "varchar(255) not null"
@@ -593,7 +592,6 @@ writeMigrationsAst = do
   let seasonFiles = fmap asText allSeasonFiles
       ast         = migrationAst seasonFiles
   writeTextFile "evergreen/Migrations.hs" $ T.pack $ prettyPrint ast
-  stdout $ inshell "hindent --style gibiansky evergreen/MigrationsTest.hs" empty
   pure ()
 
 
