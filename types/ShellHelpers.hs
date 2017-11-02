@@ -51,3 +51,7 @@ gs = stdout $ inshell "git status" empty
 
 lowercase :: String -> String
 lowercase = map toLower
+
+
+shellExec :: Text -> IO Text
+shellExec cmd = strict $ inshell cmd empty

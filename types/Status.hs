@@ -106,11 +106,12 @@ status = Hilt.once $ do
 
     -- @TODO how will we do this dynamically?
     schemaAst <- loadSchemaAst "Schema"
-
     let schemaSha = tShow $ sha1 $ tShow schemaAst
+    schemaStatus  <- gitStatus $ fromText "types/Schema.hs"
+
     newSeasonFile <- newSeasonFile schemaSha
     let newSeasonFilepath = fromText $ "evergreen/seasons/" <> newSeasonFile <> ".hs"
-    schemaStatus               <- gitStatus $ fromText "types/Schema.hs"
+
 
     -- There may or may not already be a season to compare to.
     (seasonFile, seasonStatus) <- checkExistingSeason
@@ -167,6 +168,20 @@ status = Hilt.once $ do
         -- @TODO there are no known seasons and this says it's all good if we're committed
         putStrLn "Schema has no new changes.\n"
         putStrLn "@TODO have not implemented seasons check - might be dirty seasons because you're fiddling\n"
+        T.putStrLn $ "newSeasonFilepath:" <> asText newSeasonFilepath
+
+        -- @TODO also – fix the (status, +field, status, -field, status) flow - season should be removed
+        -- What happens is the migration that's created at (+field) then is not known to be removed if the change is reverted
+        -- we end up in this block, because the Schema is already committed (changes we made temporarily were undone)
+        -- So we don't know to remove the other files...? However in `Migrations.hs` we've got the new migration sitting.
+        -- Things probably need to get rebuilt here too, regardless of Schema status, to retain integrity.
+
+        -- Lets pretend for now Oak handles commits and they never go wrong, we can just throw away dirty stuff if we're "back to committed"
+        -- @NOTE because this executes last, all our debugging above will show "incorrect" stuff that's suddenly gone after these lines
+        _ <- shellExec "rm -rf evergreen/seasons && git checkout HEAD -- evergreen/seasons"
+        _ <- shellExec "git checkout HEAD -- evergreen/Migrations.hs"
+        pure ()
+
 
       Deleted -> do
         putStrLn "It looks like types/Schema.hs has been deleted, which seems really bad..."
@@ -184,7 +199,7 @@ status = Hilt.once $ do
     --   - Check up to which SHA we've commited, and only migrate the gaps?
     --   - What if we want to test while we're developing, but without commitment yet?
 
-    -- @TODO also – fix the (status, +field, status, -field, status) flow - season should be removed
+
 
 
 addMigrations :: Module -> SeasonChanges -> Module
@@ -258,7 +273,7 @@ showSeasonDiff seasonFile recordName recordStatus changes = do
   T.putStrLn "Schema changes to be committed:"
   T.putStrLn $ "  (season remembered in " <> asText seasonFile <> ")"
   T.putStrLn ""
-  T.putStrLn $ "  " <> T.pack (show recordStatus) <> " record: " <> T.pack recordName
+  T.putStrLn $ "  " <> T.pack recordName <> " record will be " <> T.pack (lowercase $ show recordStatus)
   T.putStrLn ""
   mapM_ (putStrLn . toSeasonDiffText) changes
   T.putStrLn ""
@@ -333,12 +348,12 @@ gitStatus filepath = do
   let p = asText filepath
 
   print $ "Gitstatus for..." <> p
-  gsPorcelain <- strict $ inshell ("git status --porcelain " <> p) empty
+  gsPorcelain <- shellExec $ "git status --porcelain " <> p
   print $ firstTwo gsPorcelain
   case firstTwo gsPorcelain of
     ('_', '_') -> do
       -- `git status` is empty, so we need to check if the file is tracked (thus clean) or non-existent
-      gitFiles <- strict $ inshell ("git ls-files " <> p) empty
+      gitFiles <- shellExec $ "git ls-files " <> p
       case gitFiles of
         "" -> pure Uninitiated
         _  -> pure Committed
