@@ -25,7 +25,8 @@ import Safe
 import Data.Function ((&))
 
 import MigrationHelpers (migrationExists, migrationsFor)
-import MigrationsAst
+import AstMigrations
+import AstMigration (SeasonChanges(..), Field, Diff(..), EvergreenRecordStatus(..), addMigrations, toSeasonDiffText)
 import ShellHelpers
 
 -- Internal
@@ -200,29 +201,6 @@ status = Hilt.once $ do
     --   - What if we want to test while we're developing, but without commitment yet?
 
 
-
-
-addMigrations :: Module -> SeasonChanges -> Module
-addMigrations (Module mHead mPragmas mImports mDecls) changes =
-  -- @TODO adjust import header here?
-                                                                Module mHead
-                                                                       mPragmas
-                                                                       importDecl
-                                                                       (mDecls <> migrationsAst changes)
- where
-  importDecl =
-    [ ImportDecl
-        { importModule    = ModuleName "HiltPostgres"
-        , importQualified = False
-        , importSrc       = False
-        , importSafe      = False
-        , importPkg       = Nothing
-        , importAs        = Nothing
-        , importSpecs     = Nothing
-        }
-    ]
-
-
 adjustModuleName :: Text -> Module -> Module
 adjustModuleName filename (Module mHead mPragmas mImports mDecls) =
   Module (Just (ModuleHead (ModuleName (T.unpack filename)) Nothing Nothing)) mPragmas mImports mDecls
@@ -231,8 +209,6 @@ adjustModuleName filename (Module mHead mPragmas mImports mDecls) =
 bootstrapEvergreen :: IO ()
 bootstrapEvergreen = mktree "evergreen/seasons"
 
-
-type SeasonChanges = (Turtle.FilePath, String, EvergreenRecordStatus, [Diff])
 
 getSeasonChanges :: Turtle.FilePath -> Module -> IO SeasonChanges
 getSeasonChanges seasonFile schemaAst = do
@@ -277,13 +253,6 @@ showSeasonDiff seasonFile recordName recordStatus changes = do
   T.putStrLn ""
   mapM_ (putStrLn . toSeasonDiffText) changes
   T.putStrLn ""
-
-
-toSeasonDiffText :: Diff -> String
-toSeasonDiffText change = case change of
-    -- @TODO respect bool
-  Added   (name, tipe, bool) -> "        added:   " <> name <> " :: " <> tipe
-  Removed (name, tipe, bool) -> "        removed: " <> name <> " :: " <> tipe
 
 
 newSeasonFile :: Text -> IO Text
@@ -393,12 +362,6 @@ data EvergreenStatus
   deriving (Show, Eq)
 
 
-data EvergreenRecordStatus
-  = New
-  | Updated
-  deriving (Show, Eq)
-
-
 dbStatus :: Hilt.Postgres.DbInfo -> Module -> DbStatus
 dbStatus dbInfo ast = do
 
@@ -437,6 +400,7 @@ fieldInfoToField Hilt.Postgres.FieldInfo {..} = (fieldName, tipe, fieldNullable)
           -- @TODO ERROR: have a wildcard to catch exceptions...? Or throw exception?
     _ -> "UnknownField"
 
+
 data DbStatus
   = Clean
   | Pending
@@ -446,8 +410,6 @@ data DbStatus
 
 loadSchemaAst :: String -> IO Module
 loadSchemaAst modelVersion = fromParseResult <$> parseFile ("types/" ++ modelVersion ++ ".hs")
-
-
 
 
 writeSeasonAst :: Turtle.FilePath -> Module -> IO ()
@@ -473,15 +435,6 @@ astModel moduleName recordName fields = do
                Nothing
     ]
 
--- @TODO make this typesafe
--- (name, type, nullable)
-type Field = (String, String, Bool)
-
-data Diff
-  = Added Field
-  | Removed Field
-  | Debug String
-  deriving (Show)
 
 
 diff :: Decl -> Decl -> [Diff]
@@ -521,47 +474,6 @@ areDataDecls _          _          = False
 dataDeclName :: Decl -> String
 dataDeclName (DataDecl _ _ _ (QualConDecl Nothing Nothing (RecDecl (Ident name) _):xs) _) = name
 dataDeclName d = "Error: Decl is not a DataDecl type: " ++ show d
-
-
-migrationsAst :: SeasonChanges -> [Decl]
-migrationsAst (seasonPath, recordName, recordStatus, changes) =
-  [FunBind [Match (Ident "migration") [PVar (Ident "db")] (UnGuardedRhs (Do migrations)) Nothing]]
-  where migrations = fmap (migrationStmt recordName) changes
-
-
-migrationStmt :: String -> Diff -> Stmt
-migrationStmt recordName change = case change of
-  Added (name, tipe, nullable) -> Qualifier
-    ( App
-      ( App
-        (App (App (Var (UnQual (Ident "addColumn"))) (Var (UnQual (Ident "db")))) (Lit (String (lowercase recordName))))
-        (Lit (String name))
-      )
-      (Lit (String $ sqlType name tipe))
-    )
-
-  Removed (name, tipe, nullable) -> Qualifier
-    ( App
-      ( App (App (Var (UnQual (Ident "removeColumn"))) (Var (UnQual (Ident "db"))))
-            (Lit (String (lowercase recordName)))
-      )
-      (Lit (String name))
-    )
-
-  Debug debugString -> Qualifier
-    ( App
-      (App (App (Var (UnQual (Ident "ERROR"))) (Var (UnQual (Ident "ERROR")))) (Lit (String (lowercase recordName))))
-      (Lit (String debugString))
-    )
-
-
--- @TODO handle nullable
-sqlType :: String -> String -> String
-sqlType name tipe = case name of
-  "id" -> "serial primary key"
-  _    -> case tipe of
-    "String" -> "varchar(255) not null"
-    _        -> "ERROR UNKNOWN TYPE"
 
 
 showDbDiff :: Hilt.Postgres.Handle -> IO ()
