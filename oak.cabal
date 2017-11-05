@@ -92,6 +92,7 @@ executable oak-types
     , system-filepath
     , safe
     , cryptonite
+    , containers
   other-modules:
       AstHelpers
       AstMigration

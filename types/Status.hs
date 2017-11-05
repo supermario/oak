@@ -10,6 +10,7 @@ import HiltPostgres -- @TODO remove me when done with DB mocking tests
 import Language.Haskell.Exts.Simple
 import Data.List ((\\), find)
 import Data.Maybe (fromMaybe)
+import qualified Data.Map.Strict as Dict
 
 import Data.Time (getCurrentTime, defaultTimeLocale, formatTime)
 
@@ -21,12 +22,13 @@ import Turtle
 import Filesystem.Path.CurrentOS (fromText)
 import qualified Control.Foldl as Fold
 import Safe
+import Debug.Trace
 
 import Data.Function ((&))
 
 import MigrationHelpers (migrationExists, migrationsFor)
 import AstMigrations
-import AstMigration (SeasonChanges(..), Field, Diff(..), EvergreenRecordStatus(..), addMigrations, toSeasonDiffText)
+import AstMigration (SeasonChanges(..), Field, Diff(..), EvergreenRecordStatus(..), RecordChanges(..), addMigrations, toSeasonDiffText)
 import ShellHelpers
 
 -- Internal
@@ -36,7 +38,7 @@ import Migrations (allMigrations)
 
 
 main :: IO ()
-main = putStrLn "Nope!"
+main = status
 
 
 -- @TODO read from package.yaml using hpack lib
@@ -214,45 +216,43 @@ getSeasonChanges :: Turtle.FilePath -> Module -> IO SeasonChanges
 getSeasonChanges seasonFile schemaAst = do
   lastKnownM <- findLastKnownSeason
 
-  let schemaDecl = moduleDataDecl schemaAst
-      recordName = dataDeclName schemaDecl
-      empty      = moduleDataDecl $ astModel "Schema" "Model" []
+  let schemaDecls = moduleDataDecls schemaAst
+      empty       = moduleDataDecls $ astModel "Schema" "Model" []
 
   case lastKnownM of
     Nothing ->
       -- There are no prior seasons. We have a creation event.
-      pure (seasonFile, recordName, New, diff empty schemaDecl)
+      pure (seasonFile, diff empty schemaDecls)
 
     Just lastKnownSeason -> if lastKnownSeason == seasonFile
       then do
         T.putStrLn
           "The last known season is the same as the new season, which seems impossible. This seems like it must be a bug."
-        pure (seasonFile, recordName, New, diff empty schemaDecl)
+        pure (seasonFile, diff empty schemaDecls)
       else do
         lastKnownAst <- loadFileAst lastKnownSeason
 
-        let lastDecl = moduleDataDecl lastKnownAst
+        let lastDecls = moduleDataDecls lastKnownAst
 
-        pure (seasonFile, recordName, Updated, diff lastDecl schemaDecl)
+        pure (seasonFile, diff lastDecls schemaDecls)
 
 
 showSeasonChanges :: Turtle.FilePath -> SeasonChanges -> IO ()
-showSeasonChanges seasonFile (filepath, recordName, recordStatus, diff) =
-  showSeasonDiff filepath recordName recordStatus diff
-
-
-showSeasonDiff :: Turtle.FilePath -> String -> EvergreenRecordStatus -> [Diff] -> IO ()
-showSeasonDiff seasonFile recordName recordStatus changes = do
+showSeasonChanges seasonFile (filepath, recordChanges) = do
   T.putStrLn ""
   T.putStrLn ""
   T.putStrLn ""
   T.putStrLn "Schema changes to be committed:"
   T.putStrLn $ "  (season remembered in " <> asText seasonFile <> ")"
   T.putStrLn ""
+  mapM_ showRecordChanges recordChanges
+  T.putStrLn ""
+
+
+showRecordChanges (recordName, recordStatus, changes) = do
   T.putStrLn $ "  " <> T.pack recordName <> " record will be " <> T.pack (lowercase $ show recordStatus)
   T.putStrLn ""
   mapM_ (putStrLn . toSeasonDiffText) changes
-  T.putStrLn ""
 
 
 newSeasonFile :: Text -> IO Text
@@ -316,9 +316,9 @@ gitStatus filepath = do
 
   let p = asText filepath
 
-  print $ "Gitstatus for..." <> p
+  -- print $ "Gitstatus for..." <> p
   gsPorcelain <- shellExec $ "git status --porcelain " <> p
-  print $ firstTwo gsPorcelain
+  -- print $ firstTwo gsPorcelain
   case firstTwo gsPorcelain of
     ('_', '_') -> do
       -- `git status` is empty, so we need to check if the file is tracked (thus clean) or non-existent
@@ -437,21 +437,42 @@ astModel moduleName recordName fields = do
 
 
 
-diff :: Decl -> Decl -> [Diff]
-diff d1 d2 = if areDataDecls d1 d2
-  then do
-    let f1      = fieldDecs d1
-        f2      = fieldDecs d2
-        added   = Added <$> (f2 \\ f1)
-        removed = Removed <$> (f1 \\ f2)
+pairDecls :: [Decl] -> [Decl] -> Dict.Map String (Decl, Decl)
+pairDecls list1 list2 =
+  let
+    empty    = head $ moduleDataDecls $ astModel "Schema" "Empty" []
 
-    added ++ removed
-  else [Debug "Cannot compare structures that aren't data declarations"]
+    baseDict = Dict.empty :: Dict.Map String (Decl, Decl)
+
+    addLeft  = foldl (\dict item -> Dict.insert (dataDeclName item) (item, empty) dict) baseDict list1
+
+    addRight = foldl (\dict item -> Dict.insertWith mergeRight (dataDeclName item) (empty, item) dict) addLeft list2
+
+    mergeRight (c, d) (a, b) = (a, d)
+  in
+    addRight
 
 
-moduleDataDecl :: Module -> Decl
-moduleDataDecl (Module (Just (ModuleHead (ModuleName name) Nothing Nothing)) _ _ (dataDecl:xs)) = dataDecl
-moduleDataDecl _ = undefined -- @TODO Fix me with a nicer error!
+diff :: [Decl] -> [Decl] -> [RecordChanges]
+diff d1 d2 = fmap declChanges (Dict.toList $ pairDecls d1 d2)
+
+
+declChanges :: (String, (Decl, Decl)) -> RecordChanges
+declChanges (recordName, (d1, d2)) =
+  let f1      = fieldDecs d1
+      f2      = fieldDecs d2
+      added   = Added <$> (f2 \\ f1)
+      removed = Removed <$> (f1 \\ f2)
+      status  = if dataDeclName d1 == "Empty" then Created else Updated
+  in  trace (show d1) $ trace (show d2) (recordName, status, added ++ removed)
+
+
+moduleDataDecls :: Module -> [Decl]
+moduleDataDecls (Module (Just (ModuleHead (ModuleName name) Nothing Nothing)) _ _ items) =
+  let dataDeclFilter item = case item of
+        DataDecl dataOrNew mContext declHead qualConDecls mDeriving -> True
+        _ -> False
+  in  filter dataDeclFilter items -- @TODO Should we alert the user we're skipping things in the Schema file?
 
 
 fieldDecs :: Decl -> [Field]
@@ -484,8 +505,8 @@ showDbDiff db = do
   print schemaAst
   print $ dbInfoToAst dbInfo
 
-  let dbModelAst   = moduleDataDecl $ dbInfoToAst dbInfo
-      codeModelAst = moduleDataDecl schemaAst
+  let dbModelAst   = moduleDataDecls $ dbInfoToAst dbInfo
+      codeModelAst = moduleDataDecls schemaAst
 
   putStrLn "The differences between the DB and the latest Schema are:"
   print $ diff dbModelAst codeModelAst
@@ -507,7 +528,7 @@ testParse = parseFile "evergreen/seasons/Schema_20170812141450_be119f5af8585265f
 
 testWriteAst :: IO ()
 testWriteAst = do
-  ast <- parseFile "evergreen/Migrations.hs"
+  ast <- parseFile "types/Schema.hs"
   writeTextFile "formattedAst.hs" $ T.pack $ show ast
   stdout $ inshell "hindent --style gibiansky formattedAst.hs" empty
   pure ()

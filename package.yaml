@@ -67,6 +67,7 @@ executables:
     - system-filepath
     - safe
     - cryptonite
+    - containers
 
 tests:
   test:
