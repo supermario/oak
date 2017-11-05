@@ -20,6 +20,7 @@ import qualified Data.Text.IO as T
 import Data.Int
 import Turtle
 import Filesystem.Path.CurrentOS (fromText)
+import qualified Text.PrettyPrint.ANSI.Leijen as A
 import qualified Control.Foldl as Fold
 import Safe
 import Debug.Trace
@@ -242,7 +243,6 @@ showSeasonChanges :: Turtle.FilePath -> SeasonChanges -> IO ()
 showSeasonChanges seasonFile (filepath, recordChanges) = do
   T.putStrLn ""
   T.putStrLn ""
-  T.putStrLn ""
   T.putStrLn "Schema changes to be committed:"
   T.putStrLn $ "  (season remembered in " <> asText seasonFile <> ")"
   T.putStrLn ""
@@ -250,10 +250,13 @@ showSeasonChanges seasonFile (filepath, recordChanges) = do
   T.putStrLn ""
 
 
-showRecordChanges (recordName, recordStatus, changes) = do
-  T.putStrLn $ "  " <> T.pack recordName <> " record will be " <> T.pack (lowercase $ show recordStatus)
-  T.putStrLn ""
-  mapM_ (putStrLn . toSeasonDiffText) changes
+showRecordChanges :: RecordChanges -> IO ()
+showRecordChanges (recordName, recordStatus, changes) = if not $ null changes
+  then do
+    putColored $ "  " <> blue recordName <> " record will be " <> yellow (lowercase $ show recordStatus)
+    T.putStrLn ""
+    mapM_ (putStrLn . toSeasonDiffText) changes
+  else pure ()
 
 
 newSeasonFile :: Text -> IO Text
@@ -430,7 +433,7 @@ declChanges (recordName, (d1, d2)) =
       added   = Added <$> (f2 \\ f1)
       removed = Removed <$> (f1 \\ f2)
       status  = if dataDeclName d1 == "Empty" then Created else Updated
-  in  trace (show d1) $ trace (show d2) (recordName, status, added ++ removed)
+  in  (recordName, status, added ++ removed)
 
 
 fieldDecs :: Decl -> [Field]

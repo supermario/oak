@@ -46,16 +46,16 @@ library
   build-depends:
       text
     , base >=4.7 && <5
-    , random
     , bytestring
-    , stm
-    , slave-thread
-    , unagi-chan
     , cache
-    , hilt
     , hashable
+    , hilt
     , postgresql-orm
     , postgresql-simple
+    , random
+    , slave-thread
+    , stm
+    , unagi-chan
   default-language: Haskell2010
   default-extensions: OverloadedStrings RecordWildCards
 
@@ -79,20 +79,21 @@ executable oak-types
   default-extensions: OverloadedStrings RecordWildCards
   build-depends:
       text
+    , ansi-wl-pprint
     , base
-    , oak
-    , hilt
+    , bytestring
+    , containers
+    , cryptonite
+    , foldl
     , haskell-src-exts-simple
+    , hilt
+    , oak
     , postgresql-orm
     , postgresql-simple
-    , bytestring
-    , foldl
-    , turtle
-    , time
-    , system-filepath
     , safe
-    , cryptonite
-    , containers
+    , system-filepath
+    , time
+    , turtle
   other-modules:
       AstHelpers
       AstMigration
