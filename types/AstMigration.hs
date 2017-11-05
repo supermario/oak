@@ -100,6 +100,7 @@ sqlType name tipe = case name of
   "id" -> "serial primary key"
   _    -> case tipe of
     "String" -> "varchar(255) not null"
+    "Int"    -> "int8 not null"
     _        -> trace ("sqlType tried to process unknown type: " ++ tipe ++ " on " ++ name) "ERROR UNKNOWN TYPE"
 
 
