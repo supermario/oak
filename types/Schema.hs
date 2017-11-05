@@ -5,10 +5,10 @@ module Schema where
 
 data User = User
   { id :: Int
-  , name :: String
+  , nameX :: String
   }
 
 data Account = Account
   { id :: Int
-  , userId :: Int
+  , userIdx :: Int
   }

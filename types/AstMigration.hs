@@ -62,9 +62,14 @@ addMigrations (Module mHead mPragmas mImports mDecls) changes =
 migrationsAst :: SeasonChanges -> [Decl]
 migrationsAst (seasonPath, recordChanges) =
 
-  let migrationsFor (recordName, recordStatus, changes) = fmap (migrationStmt recordName) changes
+  let fieldMigrations (recordName, recordStatus, changes) =
+        tableCreate recordName recordStatus ++ fmap (migrationStmt recordName) changes
 
-      migrations = recordChanges |> fmap migrationsFor |> Prelude.concat
+      migrations = recordChanges |> fmap fieldMigrations |> Prelude.concat
+
+      tableCreate recordName recordStatus = case recordStatus of
+        Created -> [tableCreateStmt recordName]
+        Updated -> []
   in  [FunBind [Match (Ident "migration") [PVar (Ident "db")] (UnGuardedRhs (Do migrations)) Nothing]]
 
 
@@ -92,6 +97,11 @@ migrationStmt recordName change = case change of
       (App (App (Var (UnQual (Ident "ERROR"))) (Var (UnQual (Ident "ERROR")))) (Lit (String (lowercase recordName))))
       (Lit (String debugString))
     )
+
+
+tableCreateStmt :: String -> Stmt
+tableCreateStmt recordName = Qualifier
+  (App (App (Var (UnQual (Ident "createTable"))) (Var (UnQual (Ident "db")))) (Lit (String (lowercase recordName))))
 
 
 -- @TODO handle nullable
