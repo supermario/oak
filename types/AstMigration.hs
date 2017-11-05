@@ -13,6 +13,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as A
 
 import Debug.Trace
 
+
 -- @TODO make this typesafe
 -- (name, type, nullable)
 type Field = (String, String, Bool)
@@ -109,9 +110,14 @@ sqlType :: String -> String -> String
 sqlType name tipe = case name of
   "id" -> "serial primary key"
   _    -> case tipe of
-    "String" -> "varchar(255) not null"
-    "Int"    -> "int8 not null"
-    _        -> trace ("sqlType tried to process unknown type: " ++ tipe ++ " on " ++ name) "ERROR UNKNOWN TYPE"
+
+    "String"       -> "varchar(255) not null"
+    "Maybe String" -> "varchar(255)"
+
+    "Int"          -> "int8 not null"
+    "Maybe Int"    -> "int8"
+
+    _              -> trace ("sqlType tried to process unknown type: " ++ tipe ++ " on " ++ name) "ERROR UNKNOWN TYPE"
 
 
 -- Display Helpers

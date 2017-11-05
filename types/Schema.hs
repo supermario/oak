@@ -10,5 +10,5 @@ data User = User
 
 data Account = Account
   { id :: Int
-  , userIdx :: Int
+  , userIdx :: Maybe Int
   }

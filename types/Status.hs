@@ -422,8 +422,9 @@ fieldDecs d = [("Error:fieldDecs", "Field is not a DataDecl with QualConDecl", F
 
 
 fieldDecltoField :: FieldDecl -> Field
--- @TODO Need to transform the Maybe here
 fieldDecltoField (FieldDecl (Ident name:xs) (TyCon (UnQual (Ident tipe)))) = (name, tipe, False)
+fieldDecltoField (FieldDecl (Ident name:xs) (TyApp (TyCon (UnQual (Ident "Maybe"))) (TyCon (UnQual (Ident tipe))))) =
+  (name, "Maybe " ++ tipe, False)
 fieldDecltoField _ = ("Error:fieldDecltoField", "Field doens't match shape", False)
 
 
