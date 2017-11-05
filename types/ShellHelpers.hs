@@ -88,6 +88,12 @@ putColored :: A.Doc -> IO ()
 putColored = A.putDoc
 
 
+putColoredLn :: A.Doc -> IO ()
+putColoredLn doc = do
+  A.putDoc doc
+  putStrLn ""
+
+
 red :: String -> A.Doc
 red = A.dullred . A.text
 

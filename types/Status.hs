@@ -20,7 +20,6 @@ import qualified Data.Text.IO as T
 import Data.Int
 import Turtle
 import Filesystem.Path.CurrentOS (fromText)
-import qualified Text.PrettyPrint.ANSI.Leijen as A
 import qualified Control.Foldl as Fold
 import Safe
 import Debug.Trace
@@ -29,7 +28,7 @@ import Data.Function ((&))
 
 import MigrationHelpers (migrationExists, migrationsFor)
 import AstMigrations
-import AstMigration (SeasonChanges(..), Field, Diff(..), EvergreenRecordStatus(..), RecordChanges(..), addMigrations, toSeasonDiffText)
+import AstMigration (SeasonChanges(..), Field, Diff(..), EvergreenRecordStatus(..), RecordChanges(..), addMigrations, toSeasonDiffText, showSeasonChanges)
 import AstHelpers
 import ShellHelpers
 
@@ -239,26 +238,6 @@ getSeasonChanges seasonFile schemaAst = do
         pure (seasonFile, diff lastDecls schemaDecls)
 
 
-showSeasonChanges :: Turtle.FilePath -> SeasonChanges -> IO ()
-showSeasonChanges seasonFile (filepath, recordChanges) = do
-  T.putStrLn ""
-  T.putStrLn ""
-  T.putStrLn "Schema changes to be committed:"
-  T.putStrLn $ "  (season remembered in " <> asText seasonFile <> ")"
-  T.putStrLn ""
-  mapM_ showRecordChanges recordChanges
-  T.putStrLn ""
-
-
-showRecordChanges :: RecordChanges -> IO ()
-showRecordChanges (recordName, recordStatus, changes) = if not $ null changes
-  then do
-    putColored $ "  " <> blue recordName <> " record will be " <> yellow (lowercase $ show recordStatus)
-    T.putStrLn ""
-    mapM_ (putStrLn . toSeasonDiffText) changes
-  else pure ()
-
-
 newSeasonFile :: Text -> IO Text
 newSeasonFile sha = do
   currentTime <- getCurrentTime
@@ -433,7 +412,7 @@ declChanges (recordName, (d1, d2)) =
       added   = Added <$> (f2 \\ f1)
       removed = Removed <$> (f1 \\ f2)
       status  = if dataDeclName d1 == "Empty" then Created else Updated
-  in  (recordName, status, added ++ removed)
+  in  (recordName, status, removed ++ added)
 
 
 fieldDecs :: Decl -> [Field]
