@@ -1,10 +1,6 @@
 module AstMigration where
 
-{-
-
-Ast functions related to creating the seasons/Schema_* migration files
-
--}
+-- Ast functions related to creating the seasons/Schema_* migration files
 
 import Data.Monoid ((<>))
 import Data.Text
@@ -59,6 +55,7 @@ addMigrations (Module mHead mPragmas mImports mDecls) changes =
         }
     ]
 
+
 migrationsAst :: SeasonChanges -> [Decl]
 migrationsAst (seasonPath, recordChanges) =
 
@@ -66,8 +63,6 @@ migrationsAst (seasonPath, recordChanges) =
 
       migrations = recordChanges |> fmap migrationsFor |> Prelude.concat
   in  [FunBind [Match (Ident "migration") [PVar (Ident "db")] (UnGuardedRhs (Do migrations)) Nothing]]
-
-
 
 
 migrationStmt :: String -> Diff -> Stmt
@@ -103,8 +98,6 @@ sqlType name tipe = case name of
   _    -> case tipe of
     "String" -> "varchar(255) not null"
     _        -> "ERROR UNKNOWN TYPE"
-
-
 
 
 -- Display Helpers

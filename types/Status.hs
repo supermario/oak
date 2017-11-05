@@ -29,6 +29,7 @@ import Data.Function ((&))
 import MigrationHelpers (migrationExists, migrationsFor)
 import AstMigrations
 import AstMigration (SeasonChanges(..), Field, Diff(..), EvergreenRecordStatus(..), RecordChanges(..), addMigrations, toSeasonDiffText)
+import AstHelpers
 import ShellHelpers
 
 -- Internal
@@ -418,41 +419,6 @@ writeSeasonAst filename ast = writeTextFile filename $ T.pack $ prettyPrint ast
 -- writeTextFile seasonFile $ T.pack $ prettyPrint $ astModel "Model_A" []
 
 
-astModel :: String -> String -> [Field] -> Module
-astModel moduleName recordName fields = do
-  let fieldDecls =
-        -- @TODO handle Maybe types on bool?
-        fmap (\(name, tipe, _) -> FieldDecl [Ident name] (TyCon (UnQual (Ident tipe)))) fields
-
-  Module
-    (Just (ModuleHead (ModuleName moduleName) Nothing Nothing))
-    []
-    []
-    [ DataDecl DataType
-               Nothing
-               (DHead (Ident recordName))
-               [QualConDecl Nothing Nothing (RecDecl (Ident recordName) fieldDecls)]
-               Nothing
-    ]
-
-
-
-pairDecls :: [Decl] -> [Decl] -> Dict.Map String (Decl, Decl)
-pairDecls list1 list2 =
-  let
-    empty    = head $ moduleDataDecls $ astModel "Schema" "Empty" []
-
-    baseDict = Dict.empty :: Dict.Map String (Decl, Decl)
-
-    addLeft  = foldl (\dict item -> Dict.insert (dataDeclName item) (item, empty) dict) baseDict list1
-
-    addRight = foldl (\dict item -> Dict.insertWith mergeRight (dataDeclName item) (empty, item) dict) addLeft list2
-
-    mergeRight (c, d) (a, b) = (a, d)
-  in
-    addRight
-
-
 diff :: [Decl] -> [Decl] -> [RecordChanges]
 diff d1 d2 = fmap declChanges (Dict.toList $ pairDecls d1 d2)
 
@@ -465,14 +431,6 @@ declChanges (recordName, (d1, d2)) =
       removed = Removed <$> (f1 \\ f2)
       status  = if dataDeclName d1 == "Empty" then Created else Updated
   in  trace (show d1) $ trace (show d2) (recordName, status, added ++ removed)
-
-
-moduleDataDecls :: Module -> [Decl]
-moduleDataDecls (Module (Just (ModuleHead (ModuleName name) Nothing Nothing)) _ _ items) =
-  let dataDeclFilter item = case item of
-        DataDecl dataOrNew mContext declHead qualConDecls mDeriving -> True
-        _ -> False
-  in  filter dataDeclFilter items -- @TODO Should we alert the user we're skipping things in the Schema file?
 
 
 fieldDecs :: Decl -> [Field]
@@ -490,11 +448,6 @@ fieldDecltoField _ = ("Error:fieldDecltoField", "Field doens't match shape", Fal
 areDataDecls :: Decl -> Decl -> Bool
 areDataDecls DataDecl{} DataDecl{} = True
 areDataDecls _          _          = False
-
-
-dataDeclName :: Decl -> String
-dataDeclName (DataDecl _ _ _ (QualConDecl Nothing Nothing (RecDecl (Ident name) _):xs) _) = name
-dataDeclName d = "Error: Decl is not a DataDecl type: " ++ show d
 
 
 showDbDiff :: Hilt.Postgres.Handle -> IO ()
