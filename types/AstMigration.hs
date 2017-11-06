@@ -35,6 +35,7 @@ data EvergreenRecordStatus
 -- Name of record, record status, field changesets
 type RecordChanges = (String, EvergreenRecordStatus, [Diff])
 
+
 -- Path to migration, list of record changesets
 type SeasonChanges = (Turtle.FilePath, [RecordChanges])
 
