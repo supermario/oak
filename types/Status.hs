@@ -2,35 +2,29 @@
 
 module Main where
 
-import qualified Database.PostgreSQL.Simple as SQL
+
 import qualified Hilt
 import qualified Hilt.Postgres
 import HiltPostgres -- @TODO remove me when done with DB mocking tests
 
 import Language.Haskell.Exts.Simple
-import Data.List ((\\), find)
+import Data.List ((\\))
 import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Dict
-
 import Data.Time (getCurrentTime, defaultTimeLocale, formatTime)
-
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-
-import Data.Int
 import Turtle
 import Filesystem.Path.CurrentOS (fromText)
 import qualified Control.Foldl as Fold
-import Safe
-import Debug.Trace
-
-import Data.Function ((&))
 
 import MigrationHelpers (migrationExists, migrationsFor)
 import AstMigrations
-import AstMigration (SeasonChanges(..), Field, Diff(..), EvergreenRecordStatus(..), RecordChanges(..), addMigrations, toSeasonDiffText, showSeasonChanges)
+import AstMigration (SeasonChanges, Field, Diff(..), RecordChanges, EvergreenRecordStatus(..), addMigrations, showSeasonChanges)
+import AstDatabase (dbInfoToAst)
 import AstHelpers
 import ShellHelpers
+
 
 -- Internal
 -- @TODO this is a link into the real project... we'll have to invert this to
@@ -97,8 +91,8 @@ migrate = Hilt.once $ do
 
 displayOrRun :: Text -> Hilt.Postgres.Handle -> IO ()
 displayOrRun dbSha db = case migrationsFor allMigrations dbSha db of
-  Left err -> do
-    T.putStrLn err
+  Left err_ -> do
+    T.putStrLn err_
     showDbDiff db
 
   Right migrations -> do
@@ -111,7 +105,8 @@ status :: IO ()
 status = Hilt.once $ do
 
   -- @TODO check if the DB exists and be more helpful
-  db <- Hilt.Postgres.load
+  -- db <- Hilt.Postgres.load
+  pure () -- Keep formatting at bay...
 
   Hilt.program $ do
 
@@ -120,63 +115,27 @@ status = Hilt.once $ do
     -- @TODO how will we do this dynamically?
     schemaAst <- loadSchemaAst "Schema"
     let schemaSha = tShow $ sha1 $ tShow schemaAst
-    schemaStatus  <- gitStatus $ fromText "types/Schema.hs"
+    schemaStatus      <- gitStatus $ fromText "types/Schema.hs"
 
-    newSeasonFile <- newSeasonFile schemaSha
-    let newSeasonFilepath = fromText $ "evergreen/seasons/" <> newSeasonFile <> ".hs"
-
+    newSeasonFilename <- newSeasonFile schemaSha
+    let newSeasonFilepath = fromText $ "evergreen/seasons/" <> newSeasonFilename <> ".hs"
 
     -- There may or may not already be a season to compare to.
     (seasonFile, seasonStatus) <- checkExistingSeason
 
-    let writeAndShowSeason = do
-          seasonChanges <- getSeasonChanges newSeasonFilepath schemaAst
-          -- @TODO fixme, crap formatting
-          writeSeasonAst newSeasonFilepath $ adjustModuleName newSeasonFile (addMigrations schemaAst seasonChanges)
-          showSeasonChanges newSeasonFilepath seasonChanges
-
     case schemaStatus of
-      -- Our Schema.hs has changes to be committed.
-      ChangesPending -> case seasonStatus of
-        Uninitiated -> do
-          -- There are no prior seasons yet, create our first one
-          T.putStrLn $ "Writing first season to " <> asText newSeasonFilepath
-          writeAndShowSeason
-
-        ChangesPending -> do
-          -- A season with pending changes exists (unfinished season) so update it
-          T.putStrLn $ "Updating season " <> asText seasonFile
-
-          -- Always remove the currently uncomitted season file to keep as close as possible
-          -- to the commit timestamp, as well as always have the correct AST SHA
-          rm seasonFile
-          writeAndShowSeason
-
-        Committed -> do
-          seasonSha <- fileAstSha seasonFile
-
-          if schemaSha == seasonSha
-            then
-              T.putStrLn
-                "Schema has not been commited, but already matches a known season. This is bad... you forgot to commit your Schema!"
-            else do
-              T.putStrLn $ "Writing next season to " <> asText newSeasonFilepath
-              writeAndShowSeason
-
-        x -> do
-          -- This shows the changes between last season, and the current Schema
-          -- Changes are written to a new, uncommited season file
-          -- showSeasonChanges
-          T.putStrLn "What next?"
-          print x
-          -- showFirstSeason
-
       Uninitiated -> do
         putStrLn "Schema not found!"
         putStrLn "I was looking for types/Schema.hs, but could not find it."
         -- No Schema.hs file exists... should we write a new one?
 
-      Committed -> do
+      Deleted -> do
+        putStrLn "It looks like types/Schema.hs has been removed!"
+        putStrLn "Perhaps you want to `git checkout types/Schema.hs` to restore it?"
+
+      UnexpectedEvergreenStatus -> putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
+
+      Committed                 -> do
         -- @TODO even though it's in season, it might not match. Need to diff SHA and test integrity?
         -- @TODO there are no known seasons and this says it's all good if we're committed
         putStrLn "Schema has no new changes.\n"
@@ -191,16 +150,15 @@ status = Hilt.once $ do
 
         -- Lets pretend for now Oak handles commits and they never go wrong, we can just throw away dirty stuff if we're "back to committed"
         -- @NOTE because this executes last, all our debugging above will show "incorrect" stuff that's suddenly gone after these lines
-        _ <- shellExec "rm -rf evergreen/seasons && git checkout HEAD -- evergreen/seasons"
-        _ <- shellExec "git checkout HEAD -- evergreen/Migrations.hs"
+        -- _ <- shellExec "rm -rf evergreen/seasons && git checkout HEAD -- evergreen/seasons"
+        -- _ <- shellExec "git checkout HEAD -- evergreen/Migrations.hs"
         pure ()
 
+      -- Our Schema.hs has changes to be committed.
+      ChangesPending ->
+        checkAndUpdateSeason seasonStatus seasonFile newSeasonFilepath schemaSha schemaAst newSeasonFilename
 
-      Deleted -> do
-        putStrLn "It looks like types/Schema.hs has been deleted, which seems really bad..."
-        putStrLn "Perhaps you want to `git checkout types/Schema.hs` to restore it?"
-
-      UnexpectedEvergreenStatus -> putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
+      _ -> checkAndUpdateSeason seasonStatus seasonFile newSeasonFilepath schemaSha schemaAst newSeasonFilename
 
     pure ()
 
@@ -213,9 +171,55 @@ status = Hilt.once $ do
     --   - What if we want to test while we're developing, but without commitment yet?
 
 
+checkAndUpdateSeason :: EvergreenStatus -> Turtle.FilePath -> Turtle.FilePath -> Text -> Module -> Text -> IO ()
+checkAndUpdateSeason seasonStatus seasonFile newSeasonFilepath schemaSha schemaAst newSeasonFilename =
+  case seasonStatus of
+    Uninitiated -> do
+      -- There are no prior seasons yet, create our first one
+      T.putStrLn $ "Writing first season to " <> asText newSeasonFilepath
+      writeAndShowSeason newSeasonFilepath schemaAst newSeasonFilename
+
+    ChangesPending -> do
+      -- A season with pending changes exists (unfinished season) so update it
+      T.putStrLn $ "Updating season " <> asText seasonFile
+
+      -- Always remove the currently uncomitted season file to keep as close as possible
+      -- to the commit timestamp, as well as always have the correct AST SHA
+      rm seasonFile
+      writeAndShowSeason newSeasonFilepath schemaAst newSeasonFilename
+
+    Committed -> do
+      seasonSha <- fileAstSha seasonFile
+
+      if schemaSha == seasonSha
+        then
+          T.putStrLn
+            "Schema has not been commited, but already matches a known season. This is bad... you forgot to commit your Schema!"
+        else do
+          T.putStrLn $ "Writing next season to " <> asText newSeasonFilepath
+          writeAndShowSeason newSeasonFilepath schemaAst newSeasonFilename
+
+    other -> do
+      -- This shows the changes between last season, and the current Schema
+      -- Changes are written to a new, uncommited season file
+      -- showSeasonChanges
+      T.putStrLn "What next?"
+      print other
+      -- showFirstSeason
+
+
+writeAndShowSeason :: Turtle.FilePath -> Module -> Text -> IO ()
+writeAndShowSeason newSeasonFilepath schemaAst newSeasonFilename = do
+  seasonChanges <- getSeasonChanges newSeasonFilepath schemaAst
+  -- @TODO fixme, crap formatting
+  writeSeasonAst newSeasonFilepath $ adjustModuleName newSeasonFilename (addMigrations schemaAst seasonChanges)
+  showSeasonChanges newSeasonFilepath seasonChanges
+
+
 adjustModuleName :: Text -> Module -> Module
-adjustModuleName filename (Module mHead mPragmas mImports mDecls) =
-  Module (Just (ModuleHead (ModuleName (T.unpack filename)) Nothing Nothing)) mPragmas mImports mDecls
+adjustModuleName fileName_ (Module _ mPragmas mImports mDecls) =
+  Module (Just (ModuleHead (ModuleName (T.unpack fileName_)) Nothing Nothing)) mPragmas mImports mDecls
+adjustModuleName _ module_ = module_ -- Failure case @TODO should it be silent?
 
 
 bootstrapEvergreen :: IO ()
@@ -227,18 +231,18 @@ getSeasonChanges seasonFile schemaAst = do
   lastKnownM <- findLastKnownSeason
 
   let schemaDecls = moduleDataDecls schemaAst
-      empty       = moduleDataDecls $ astModel "Schema" "Model" []
+      emptySchema = moduleDataDecls $ astModel "Schema" "Model" []
 
   case lastKnownM of
     Nothing ->
       -- There are no prior seasons. We have a creation event.
-      pure (seasonFile, diff empty schemaDecls)
+      pure (seasonFile, diff emptySchema schemaDecls)
 
     Just lastKnownSeason -> if lastKnownSeason == seasonFile
       then do
         T.putStrLn
           "The last known season is the same as the new season, which seems impossible. This seems like it must be a bug."
-        pure (seasonFile, diff empty schemaDecls)
+        pure (seasonFile, diff emptySchema schemaDecls)
       else do
         lastKnownAst <- loadFileAst lastKnownSeason
 
@@ -269,16 +273,16 @@ findLastKnownSeason = do
   seasons <- seasonFiles
 
   let toTuple file = do
-        status <- gitStatus file
-        pure (file, status)
+        status_ <- gitStatus file
+        pure (file, status_)
 
   -- We only need to check our last two seasons, as only one may not yet be known (committed)
   statuses <- mapM toTuple (take 2 seasons)
 
-  case filter (\(_, s) -> s == Committed) statuses of
+  case filter (\(_, st) -> st == Committed) statuses of
     [] ->
       pure Nothing -- No known seasons
-    (f, s):xs -> pure (Just f) -- Latest known commited season
+    (filePath, _):_ -> pure (Just filePath) -- Latest known commited season
 
 
 checkExistingSeason :: IO (Turtle.FilePath, EvergreenStatus)
@@ -288,12 +292,14 @@ checkExistingSeason = do
   case seasons of
     [] ->
       pure ("", Uninitiated) -- No seasons exist
-    seasonFile:xs -> do
-      status <- gitStatus seasonFile
+    seasonFile:_ -> do
+      status_ <- gitStatus seasonFile
 
-      case status of
+      pure (seasonFile, status_)
+
+      -- case status of
         -- Seasons exist
-        x -> pure (seasonFile, x) -- Latest season status
+        -- status_ -> pure (seasonFile, status_) -- Latest season status
         -- Committed -> pure (seasonFile, Committed) -- But the latest one is commited
         -- _ -> case xs of -- @TODO what's going on here? Why do we need to check the prior file again...?
         --   [] -> pure (seasonFile, ChangesPending)
@@ -337,10 +343,10 @@ gitStatus filepath = do
 
 
 firstTwo :: Text -> (Char, Char)
-firstTwo text = (first, second)
+firstTwo text_ = (first, second)
  where
-  part   = snd <$> T.uncons text
-  first  = fromMaybe '_' $ fst <$> T.uncons text
+  part   = snd <$> T.uncons text_
+  first  = fromMaybe '_' $ fst <$> T.uncons text_
   second = fromMaybe '_' $ fst <$> (T.uncons =<< part)
 
 
@@ -354,58 +360,12 @@ data EvergreenStatus
   deriving (Show, Eq)
 
 
-dbStatus :: Hilt.Postgres.DbInfo -> Module -> DbStatus
-dbStatus dbInfo ast = do
-
-  let dbAst    = dbInfoToAst dbInfo
-      modelAst = ast
-
-  if dbAst == modelAst then Clean else Dirty
-
-
-dbInfoToAst :: Hilt.Postgres.DbInfo -> Module -- @TODO Maybe Module
-dbInfoToAst dbInfo = do
-  let target = "user" -- @HARDCODED paramaterise this later
-      predicate Hilt.Postgres.TableInfo {..} = tableName == target
-
-  case Data.List.find predicate dbInfo of
-    Just Hilt.Postgres.TableInfo {..} -> astModel "Schema" "User" (fmap fieldInfoToField fields)
-
-    Nothing                           -> astModel "Schema" "X" []
-
-  -- @TODO cover if database is empty case
-
-
-fieldInfoToField :: Hilt.Postgres.FieldInfo -> Field
-fieldInfoToField Hilt.Postgres.FieldInfo {..} = (fieldName, tipe, fieldNullable)
- where
-  tipe = case fieldType of
-    "character varying(255)" ->
-      "String"
-          -- @TODO handle various postgres types
-          -- @TODO go steal the definitions from Persistent
-          -- https://github.com/yesodweb/persistent/wiki/Persistent-entity-syntax
-
-    "integer" ->
-      "Int"
-
-          -- @TODO ERROR: have a wildcard to catch exceptions...? Or throw exception?
-    _ -> "UnknownField"
-
-
-data DbStatus
-  = Clean
-  | Pending
-  | Dirty
-  deriving (Show)
-
-
 loadSchemaAst :: String -> IO Module
 loadSchemaAst modelVersion = fromParseResult <$> parseFile ("types/" ++ modelVersion ++ ".hs")
 
 
 writeSeasonAst :: Turtle.FilePath -> Module -> IO ()
-writeSeasonAst filename ast = writeTextFile filename $ T.pack $ prettyPrint ast
+writeSeasonAst fileName_ ast = writeTextFile fileName_ $ T.pack $ prettyPrint ast
 
 -- writeTextFile seasonFile $ T.pack $ prettyPrint $ astModel "Model_A" []
 
@@ -416,24 +376,24 @@ diff d1 d2 = fmap declChanges (Dict.toList $ pairDecls d1 d2)
 
 declChanges :: (String, (Decl, Decl)) -> RecordChanges
 declChanges (recordName, (d1, d2)) =
-  let f1      = fieldDecs d1
-      f2      = fieldDecs d2
-      added   = Added <$> (f2 \\ f1)
-      removed = Removed <$> (f1 \\ f2)
-      status  = if dataDeclName d1 == "Empty" then Created else Updated
-  in  (recordName, status, removed ++ added)
+  let f1           = fieldDecs d1
+      f2           = fieldDecs d2
+      added        = Added <$> (f2 \\ f1)
+      removed      = Removed <$> (f1 \\ f2)
+      recordStatus = if dataDeclName d1 == "Empty" then Created else Updated
+  in  (recordName, recordStatus, removed ++ added)
 
 
 fieldDecs :: Decl -> [Field]
-fieldDecs (DataDecl _ _ _ (QualConDecl Nothing Nothing (RecDecl (Ident _) fieldDecls):xs) _) =
+fieldDecs (DataDecl _ _ _ (QualConDecl Nothing Nothing (RecDecl (Ident _) fieldDecls):_) _) =
   fmap fieldDecltoField fieldDecls
-fieldDecs d = [("Error:fieldDecs", "Field is not a DataDecl with QualConDecl", False)]
+fieldDecs _ = [("Error:fieldDecs", "Field is not a DataDecl with QualConDecl", False)]
 
 
 fieldDecltoField :: FieldDecl -> Field
-fieldDecltoField (FieldDecl (Ident name:xs) (TyCon (UnQual (Ident tipe)))) = (name, tipe, False)
-fieldDecltoField (FieldDecl (Ident name:xs) (TyApp (TyCon (UnQual (Ident "Maybe"))) (TyCon (UnQual (Ident tipe))))) =
-  (name, "Maybe " ++ tipe, False)
+fieldDecltoField (FieldDecl (Ident fieldName:_) (TyCon (UnQual (Ident tipe)))) = (fieldName, tipe, False)
+fieldDecltoField (FieldDecl (Ident fieldName:_) (TyApp (TyCon (UnQual (Ident "Maybe"))) (TyCon (UnQual (Ident tipe)))))
+  = (fieldName, "Maybe " ++ tipe, False)
 fieldDecltoField _ = ("Error:fieldDecltoField", "Field doens't match shape", False)
 
 
@@ -482,8 +442,8 @@ testWriteAst = do
 writeMigrationsSummaryFile :: IO ()
 writeMigrationsSummaryFile = do
   allSeasonFiles <- seasonFiles
-  let seasonFiles = fmap asText allSeasonFiles
-      ast         = migrationAst seasonFiles
+  let seasonFilePaths = fmap asText allSeasonFiles
+      ast             = migrationAst seasonFilePaths
   writeTextFile "evergreen/Migrations.hs" $ T.pack $ prettyPrint ast
   pure ()
 
