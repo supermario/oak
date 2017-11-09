@@ -4,7 +4,7 @@ module Main where
 
 import qualified Hilt
 import qualified Hilt.Postgres
-import HiltPostgres -- @TODO remove me when done with DB mocking tests
+import Evergreen -- @TODO remove me when done with DB mocking tests
 
 import Language.Haskell.Exts.Simple
 import Data.List ((\\))

@@ -31,8 +31,8 @@ library
       OakRuntime
       App
       Migrations
-      HiltPostgres
       MigrationHelpers
+      Evergreen
   other-modules:
       MigrationsXXX
       Model

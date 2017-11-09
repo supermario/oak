@@ -50,7 +50,7 @@ addMigrations (Module mHead mPragmas mImports mDecls) changes =
  where
   importDecl =
     [ ImportDecl
-        { importModule    = ModuleName "HiltPostgres"
+        { importModule    = ModuleName "Evergreen"
         , importQualified = False
         , importSrc       = False
         , importSafe      = False

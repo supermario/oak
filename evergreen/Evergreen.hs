@@ -1,4 +1,4 @@
-module HiltPostgres where
+module Evergreen where
 
 import qualified Hilt.Postgres
 
