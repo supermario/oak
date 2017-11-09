@@ -2,7 +2,6 @@
 
 module Main where
 
-
 import qualified Hilt
 import qualified Hilt.Postgres
 import HiltPostgres -- @TODO remove me when done with DB mocking tests
@@ -58,7 +57,9 @@ migrate = Hilt.once $ do
 
   Hilt.program $ do
     -- @TODO Temporary while we're testing
+    -- @TODO can we have one command to drop all tables in DB?
     dropTable db "user"
+    dropTable db "account"
 
     dbInfo <- Hilt.Postgres.dbInfo db
     Hilt.Postgres.pp dbInfo
