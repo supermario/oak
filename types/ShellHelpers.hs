@@ -10,6 +10,7 @@ import Data.Text.Encoding as E
 import Crypto.Hash
 import qualified Control.Foldl as Fold
 import Data.Maybe (fromMaybe)
+import AstHelpers (astModel)
 
 
 (|>) :: a -> (a -> b) -> b
@@ -70,6 +71,29 @@ firstTwoChars text_ = (first, second)
   part   = snd <$> T.uncons text_
   first  = fromMaybe '_' $ fst <$> T.uncons text_
   second = fromMaybe '_' $ fst <$> (T.uncons =<< part)
+
+
+-- TESTS
+
+
+testSample :: IO ()
+testSample = prettyPrint . fromParseResult <$> parseFile "evergreen/seasons/Migrations.hs" >>= putStrLn
+
+
+testAst :: IO ()
+testAst = putStrLn $ prettyPrint $ astModel "Schema" "ModelA" []
+
+
+testParse :: IO (ParseResult Module)
+testParse = parseFile "evergreen/seasons/Schema_20170812141450_be119f5af8585265f8a03acda4d86dfe6eaecb22.hs"
+
+
+testWriteAst :: IO ()
+testWriteAst = do
+  ast <- parseFile "types/Schema.hs"
+  writeTextFile "formattedAst.hs" $ T.pack $ show ast
+  stdout $ inshell "hindent --style gibiansky formattedAst.hs" empty
+  pure ()
 
 
 -- Shell ANSI coloring

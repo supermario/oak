@@ -11,32 +11,7 @@ import qualified Data.Text.IO as T
 import qualified Text.PrettyPrint.ANSI.Leijen as A
 
 import Debug.Trace
-
-
--- @TODO make this typesafe
--- (name, type, nullable)
-type Field = (String, String, Bool)
-
-
-data Diff
-  = Added Field
-  | Removed Field
-  | Debug String
-  deriving (Show)
-
-
-data EvergreenRecordStatus
-  = Created
-  | Updated
-  deriving (Show, Eq)
-
-
--- Name of record, record status, field changesets
-type RecordChanges = (String, EvergreenRecordStatus, [Diff])
-
-
--- Path to migration, list of record changesets
-type SeasonChanges = (Turtle.FilePath, [RecordChanges])
+import AstHelpers (SeasonChanges, EvergreenRecordStatus(..), Diff(..), RecordChanges)
 
 
 writeSeasonAst :: Turtle.FilePath -> Module -> IO ()
@@ -104,12 +79,6 @@ migrationStmt recordName change = case change of
       (Lit (String name))
     )
 
-  Debug debugString -> Qualifier
-    ( App
-      (App (App (Var (UnQual (Ident "ERROR"))) (Var (UnQual (Ident "ERROR")))) (Lit (String (lowercase recordName))))
-      (Lit (String debugString))
-    )
-
 
 tableCreateStmt :: String -> Stmt
 tableCreateStmt recordName = Qualifier
@@ -128,7 +97,7 @@ sqlType name tipe = case name of
     "Int"          -> "int8 not null"
     "Maybe Int"    -> "int8"
 
-    _              -> trace ("sqlType tried to process unknown type: " ++ tipe ++ " on " ++ name) "ERROR UNKNOWN TYPE"
+    _              -> trace ("sqlType tried to process unknown type: " ++ name ++ " :: " ++ tipe) "ERROR UNKNOWN TYPE"
 
 
 -- Display Helpers
@@ -160,4 +129,3 @@ toSeasonDiffText change = case change of
     -- @TODO respect bool
   Added   (name, tipe, bool) -> green $ "        added:   " <> name <> " :: " <> tipe
   Removed (name, tipe, bool) -> red $ "        removed: " <> name <> " :: " <> tipe
-  Debug   str                -> red $ "        ERROR: " <> str

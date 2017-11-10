@@ -2,8 +2,18 @@ module AstSchema where
 
 {-
 
-Ast functions related to creating the seasons/Schema_* migration files
+Ast functions related to Schema.hs
 
 -}
 
-x = 1
+import Language.Haskell.Exts.Simple
+import Data.Text
+import ShellHelpers
+
+
+loadSchemaAst :: String -> IO Module
+loadSchemaAst modelVersion = fromParseResult <$> parseFile ("types/" ++ modelVersion ++ ".hs")
+
+
+schemaSha :: Module -> Text
+schemaSha = tShow . sha1 . tShow

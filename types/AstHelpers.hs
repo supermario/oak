@@ -2,7 +2,33 @@ module AstHelpers where
 
 import Language.Haskell.Exts.Simple
 import qualified Data.Map.Strict as Dict
-import AstMigration (Field)
+import Turtle
+import Data.List ((\\))
+
+
+-- @TODO make this typesafe
+-- (name, type, nullable)
+type Field = (String, String, Bool)
+
+
+data Diff
+  = Added Field
+  | Removed Field
+  deriving (Show)
+
+
+-- Name of record, record status, field changesets
+type RecordChanges = (String, EvergreenRecordStatus, [Diff])
+
+
+data EvergreenRecordStatus
+  = Created
+  | Updated
+  deriving (Show, Eq)
+
+
+-- Path to migration, list of record changesets
+type SeasonChanges = (Turtle.FilePath, [RecordChanges])
 
 
 {- Given two lists of data declaration ASTs, zips them together into a Dict keyed by record name
@@ -23,6 +49,38 @@ pairDecls list1 list2 =
     mergeRight (c, d) (a, b) = (a, d)
   in
     addRight
+
+
+diff :: [Decl] -> [Decl] -> [RecordChanges]
+diff d1 d2 = fmap declChanges (Dict.toList $ pairDecls d1 d2)
+
+
+declChanges :: (String, (Decl, Decl)) -> RecordChanges
+declChanges (recordName, (d1, d2)) =
+  let f1           = fieldDecs d1
+      f2           = fieldDecs d2
+      added        = Added <$> (f2 \\ f1)
+      removed      = Removed <$> (f1 \\ f2)
+      recordStatus = if dataDeclName d1 == "Empty" then Created else Updated
+  in  (recordName, recordStatus, removed ++ added)
+
+
+fieldDecs :: Decl -> [Field]
+fieldDecs (DataDecl _ _ _ (QualConDecl Nothing Nothing (RecDecl (Ident _) fieldDecls):_) _) =
+  fmap fieldDecltoField fieldDecls
+fieldDecs _ = [("Error:fieldDecs", "Field is not a DataDecl with QualConDecl", False)]
+
+
+fieldDecltoField :: FieldDecl -> Field
+fieldDecltoField (FieldDecl (Ident fieldName:_) (TyCon (UnQual (Ident tipe)))) = (fieldName, tipe, False)
+fieldDecltoField (FieldDecl (Ident fieldName:_) (TyApp (TyCon (UnQual (Ident "Maybe"))) (TyCon (UnQual (Ident tipe)))))
+  = (fieldName, "Maybe " ++ tipe, False)
+fieldDecltoField _ = ("Error:fieldDecltoField", "Field doens't match shape", False)
+
+
+areDataDecls :: Decl -> Decl -> Bool
+areDataDecls DataDecl{} DataDecl{} = True
+areDataDecls _          _          = False
 
 
 moduleDataDecls :: Module -> [Decl]

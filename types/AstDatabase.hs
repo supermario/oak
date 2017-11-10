@@ -5,9 +5,9 @@ import qualified Hilt.Postgres
 
 import Language.Haskell.Exts.Simple
 import Data.List (find)
+import AstSchema (loadSchemaAst)
+import AstHelpers (astModel, Field, moduleDataDecls, diff)
 
-import AstMigration (Field)
-import AstHelpers (astModel)
 
 data DbStatus
   = Clean
@@ -53,3 +53,18 @@ fieldInfoToField Hilt.Postgres.FieldInfo {..} = (fieldName, tipe, fieldNullable)
 
           -- @TODO ERROR: have a wildcard to catch exceptions...? Or throw exception?
     _ -> "UnknownField"
+
+
+showDbDiff :: Hilt.Postgres.Handle -> IO ()
+showDbDiff db = do
+  schemaAst <- loadSchemaAst "Schema"
+  dbInfo    <- Hilt.Postgres.dbInfo db
+
+  print schemaAst
+  print $ dbInfoToAst dbInfo
+
+  let dbModelAst   = moduleDataDecls $ dbInfoToAst dbInfo
+      codeModelAst = moduleDataDecls schemaAst
+
+  putStrLn "The differences between the DB and the latest Schema are:"
+  print $ diff dbModelAst codeModelAst

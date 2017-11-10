@@ -11,7 +11,6 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Monoid ((<>))
 
 
-
 data Migration
   = CreateTable String
   | DropTable String
