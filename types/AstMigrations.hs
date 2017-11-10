@@ -1,13 +1,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+module AstMigrations where
+
 {-
 
 Ast functions related to creating the Migrations.hs summary file
 
 -}
-
-module AstMigrations where
 
 import Data.Text
 import Language.Haskell.Exts.Simple
@@ -15,6 +15,24 @@ import Safe (lastMay, atMay)
 import Data.Monoid ((<>))
 import Data.Maybe (fromMaybe)
 import ShellHelpers
+import Turtle
+
+
+writeMigrationsSummaryFile :: IO ()
+writeMigrationsSummaryFile = do
+  allSeasonFiles <- seasonFiles
+  let seasonFilePaths = fmap asText allSeasonFiles
+      ast             = migrationAst seasonFilePaths
+  writeTextFile "evergreen/Migrations.hs" $ pack $ prettyPrint ast
+  pure ()
+
+
+resetMigrationsSummaryFile :: IO ()
+resetMigrationsSummaryFile = do
+  let ast = migrationAst []
+  writeTextFile "evergreen/Migrations.hs" $ pack $ prettyPrint ast
+  pure ()
+
 
 migrationAst :: [Text] -> Module
 migrationAst seasonPaths = Module
@@ -54,10 +72,10 @@ migrationAst seasonPaths = Module
     )
   , PatBind (PVar (Ident "allMigrations")) (UnGuardedRhs (List (fmap migrationTuple seasonNames))) Nothing
   ]
-  where seasonNames = Prelude.reverse $ fmap filename seasonPaths
+  where seasonNames = Prelude.reverse $ fmap getFilename seasonPaths
 
-filename :: Text -> Text
-filename file =
+getFilename :: Text -> Text
+getFilename file =
   fromMaybe ("ERROR: could not parse SHA from filename " <> file)
     $ flip atMay 0
     $ splitOn ("." :: Text)

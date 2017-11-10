@@ -2,15 +2,17 @@ module ShellHelpers where
 
 import Language.Haskell.Exts.Simple
 import Turtle
-import Filesystem.Path.CurrentOS (fromText)
 import qualified Text.PrettyPrint.ANSI.Leijen as A
 
 import Data.Char (toLower)
 import qualified Data.Text as T
 import Data.Text.Encoding as E
 import Crypto.Hash
+import qualified Control.Foldl as Fold
+import Data.Maybe (fromMaybe)
 
 
+(|>) :: a -> (a -> b) -> b
 (|>) = (&)
 
 
@@ -22,6 +24,10 @@ fileAstSha :: Turtle.FilePath -> IO Text
 fileAstSha file = do
   ast <- loadFileAst file
   pure $ astSha ast
+
+
+seasonFiles :: IO [Turtle.FilePath]
+seasonFiles = fold (Turtle.find (suffix ".hs") "evergreen/seasons") Fold.revList
 
 
 astSha :: Module -> Text
@@ -56,6 +62,15 @@ lowercase = map toLower
 
 shellExec :: Text -> IO Text
 shellExec cmd = strict $ inshell cmd empty
+
+
+firstTwoChars :: Text -> (Char, Char)
+firstTwoChars text_ = (first, second)
+ where
+  part   = snd <$> T.uncons text_
+  first  = fromMaybe '_' $ fst <$> T.uncons text_
+  second = fromMaybe '_' $ fst <$> (T.uncons =<< part)
+
 
 -- Shell ANSI coloring
 

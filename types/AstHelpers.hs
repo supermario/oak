@@ -31,6 +31,7 @@ moduleDataDecls (Module (Just (ModuleHead (ModuleName name) Nothing Nothing)) _ 
         DataDecl dataOrNew mContext declHead qualConDecls mDeriving -> True
         _ -> False
   in  filter dataDeclFilter items -- @TODO Should we alert the user we're skipping things in the Schema file?
+moduleDataDecls _ = undefined
 
 
 dataDeclName :: Decl -> String

@@ -8,7 +8,6 @@ import Evergreen -- @TODO remove me when done with DB mocking tests
 
 import Language.Haskell.Exts.Simple
 import Data.List ((\\))
-import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Dict
 import Data.Time (getCurrentTime, defaultTimeLocale, formatTime)
 import qualified Data.Text as T
@@ -19,7 +18,7 @@ import qualified Control.Foldl as Fold
 
 import MigrationHelpers (migrationExists, migrationsFor)
 import AstMigrations
-import AstMigration (SeasonChanges, Field, Diff(..), RecordChanges, EvergreenRecordStatus(..), addMigrations, showSeasonChanges)
+import AstMigration (SeasonChanges, Field, Diff(..), RecordChanges, EvergreenRecordStatus(..), addMigrations, showSeasonChanges, writeSeasonAst)
 import AstDatabase (dbInfoToAst)
 import AstHelpers
 import ShellHelpers
@@ -32,16 +31,18 @@ import Migrations (allMigrations)
 
 
 parser :: Parser Text
-parser = argText "<command>" "One of: status, migrate"
+parser = argText "<command>" "One of: status, remember, migrate, destroy"
 
 
 main :: IO ()
 main = do
-  cmd <- options "Evergreen migrations" parser
+  cmd <- options "Evergreen 🌲" parser
   case cmd of
-    "status"  -> status
-    "migrate" -> migrate
-    _         -> T.putStrLn $ "Unsupported command: " <> cmd
+    "status"   -> status
+    "migrate"  -> migrate
+    "remember" -> remember
+    "destroy"  -> destroy
+    _          -> T.putStrLn $ "Unsupported command: " <> cmd
 
 
 -- @TODO read from package.yaml using hpack lib
@@ -116,7 +117,7 @@ status = Hilt.once $ do
     -- @TODO how will we do this dynamically?
     schemaAst <- loadSchemaAst "Schema"
     let schemaSha = tShow $ sha1 $ tShow schemaAst
-    schemaStatus      <- gitStatus $ fromText "types/Schema.hs"
+    schemaStatus      <- gitEvergreenStatus $ fromText "types/Schema.hs"
 
     newSeasonFilename <- newSeasonFile schemaSha
     let newSeasonFilepath = fromText $ "evergreen/seasons/" <> newSeasonFilename <> ".hs"
@@ -170,6 +171,20 @@ status = Hilt.once $ do
     -- So we'll likely need to add logic to:
     --   - Check up to which SHA we've commited, and only migrate the gaps?
     --   - What if we want to test while we're developing, but without commitment yet?
+
+
+remember :: IO ()
+remember = do
+  _ <- status
+  _ <- shellExec "make build"
+  pure ()
+
+
+destroy :: IO ()
+destroy = do
+  _ <- shellExec "rm -rf evergreen/seasons"
+  resetMigrationsSummaryFile
+  pure ()
 
 
 checkAndUpdateSeason :: EvergreenStatus -> Turtle.FilePath -> Turtle.FilePath -> Text -> Module -> Text -> IO ()
@@ -261,10 +276,6 @@ newSeasonFile sha = do
   pure $ "Schema_" <> T.pack timestamp <> "_" <> sha
 
 
-seasonFiles :: IO [Turtle.FilePath]
-seasonFiles = fold (Turtle.find (suffix ".hs") "evergreen/seasons") Fold.revList
-
-
 seasonFileWithSha :: Text -> IO [Turtle.FilePath]
 seasonFileWithSha sha = fold (Turtle.find (contains $ text sha) "evergreen/seasons") Fold.revList
 
@@ -274,7 +285,7 @@ findLastKnownSeason = do
   seasons <- seasonFiles
 
   let toTuple file = do
-        status_ <- gitStatus file
+        status_ <- gitEvergreenStatus file
         pure (file, status_)
 
   -- We only need to check our last two seasons, as only one may not yet be known (committed)
@@ -294,7 +305,7 @@ checkExistingSeason = do
     [] ->
       pure ("", Uninitiated) -- No seasons exist
     seasonFile:_ -> do
-      status_ <- gitStatus seasonFile
+      status_ <- gitEvergreenStatus seasonFile
 
       pure (seasonFile, status_)
 
@@ -305,20 +316,20 @@ checkExistingSeason = do
         -- _ -> case xs of -- @TODO what's going on here? Why do we need to check the prior file again...?
         --   [] -> pure (seasonFile, ChangesPending)
         --   y:ys -> do
-        --     status' <- gitStatus y
+        --     status' <- gitEvergreenStatus y
         --     pure (seasonFile, status')
 
 
 
-gitStatus :: Turtle.FilePath -> IO EvergreenStatus
-gitStatus filepath = do
+gitEvergreenStatus :: Turtle.FilePath -> IO EvergreenStatus
+gitEvergreenStatus filepath = do
 
   let p = asText filepath
 
   -- print $ "Gitstatus for..." <> p
   gsPorcelain <- shellExec $ "git status --porcelain " <> p
-  -- print $ firstTwo gsPorcelain
-  case firstTwo gsPorcelain of
+  -- print $ firstTwoChars gsPorcelain
+  case firstTwoChars gsPorcelain of
     ('_', '_') -> do
       -- `git status` is empty, so we need to check if the file is tracked (thus clean) or non-existent
       gitFiles <- shellExec $ "git ls-files " <> p
@@ -343,14 +354,6 @@ gitStatus filepath = do
     _ -> pure UnexpectedEvergreenStatus
 
 
-firstTwo :: Text -> (Char, Char)
-firstTwo text_ = (first, second)
- where
-  part   = snd <$> T.uncons text_
-  first  = fromMaybe '_' $ fst <$> T.uncons text_
-  second = fromMaybe '_' $ fst <$> (T.uncons =<< part)
-
-
 data EvergreenStatus
   = Uninitiated
   | ChangesPending
@@ -364,9 +367,6 @@ data EvergreenStatus
 loadSchemaAst :: String -> IO Module
 loadSchemaAst modelVersion = fromParseResult <$> parseFile ("types/" ++ modelVersion ++ ".hs")
 
-
-writeSeasonAst :: Turtle.FilePath -> Module -> IO ()
-writeSeasonAst fileName_ ast = writeTextFile fileName_ $ T.pack $ prettyPrint ast
 
 -- writeTextFile seasonFile $ T.pack $ prettyPrint $ astModel "Model_A" []
 
@@ -440,13 +440,6 @@ testWriteAst = do
   pure ()
 
 
-writeMigrationsSummaryFile :: IO ()
-writeMigrationsSummaryFile = do
-  allSeasonFiles <- seasonFiles
-  let seasonFilePaths = fmap asText allSeasonFiles
-      ast             = migrationAst seasonFilePaths
-  writeTextFile "evergreen/Migrations.hs" $ T.pack $ prettyPrint ast
-  pure ()
 
 
 --- Mocks

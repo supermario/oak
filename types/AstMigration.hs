@@ -4,7 +4,6 @@ module AstMigration where
 
 import Data.Monoid ((<>))
 import Language.Haskell.Exts.Simple
-import Safe (lastMay, atMay)
 import ShellHelpers
 import Turtle
 import qualified Data.Text as T
@@ -40,6 +39,10 @@ type RecordChanges = (String, EvergreenRecordStatus, [Diff])
 type SeasonChanges = (Turtle.FilePath, [RecordChanges])
 
 
+writeSeasonAst :: Turtle.FilePath -> Module -> IO ()
+writeSeasonAst fileName_ ast = writeTextFile fileName_ $ T.pack $ prettyPrint ast
+
+
 addMigrations :: Module -> SeasonChanges -> Module
 addMigrations (Module mHead mPragmas mImports mDecls) changes =
   -- @TODO adjust import header here?
@@ -59,6 +62,7 @@ addMigrations (Module mHead mPragmas mImports mDecls) changes =
         , importSpecs     = Nothing
         }
     ]
+addMigrations _ _ = undefined
 
 
 migrationsAst :: SeasonChanges -> [Decl]
@@ -72,7 +76,13 @@ migrationsAst (seasonPath, recordChanges) =
       tableCreate recordName recordStatus = case recordStatus of
         Created -> [tableCreateStmt recordName]
         Updated -> []
-  in  [FunBind [Match (Ident "migration") [PVar (Ident "db")] (UnGuardedRhs (Do migrations)) Nothing]]
+  in  [ TypeSig
+        [Ident "migration"]
+        ( TyFun (TyCon (UnQual (Ident "PostgresHandle")))
+                (TyApp (TyCon (UnQual (Ident "IO"))) (TyCon (Special UnitCon)))
+        )
+      , FunBind [Match (Ident "migration") [PVar (Ident "db")] (UnGuardedRhs (Do migrations)) Nothing]
+      ]
 
 
 migrationStmt :: String -> Diff -> Stmt
@@ -150,3 +160,4 @@ toSeasonDiffText change = case change of
     -- @TODO respect bool
   Added   (name, tipe, bool) -> green $ "        added:   " <> name <> " :: " <> tipe
   Removed (name, tipe, bool) -> red $ "        removed: " <> name <> " :: " <> tipe
+  Debug   str                -> red $ "        ERROR: " <> str
