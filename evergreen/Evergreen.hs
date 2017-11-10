@@ -10,9 +10,31 @@ import qualified Data.ByteString.Char8 as S8
 
 import Data.Monoid ((<>))
 
+
+
+data Migration
+  = CreateTable String
+  | DropTable String
+  | AddColumn String String String
+  | RemoveColumn String String
+
+
 -- @TODO currently all these helpers execute IO directly – ideally we'd have a
 -- set of statements return in a migration scenario so we can run them all in a
 -- single transaction if possible
+
+
+-- Re-export this type so migration files compile strictly for now, until we address the above point and remove db dep
+type PostgresHandle = Hilt.Postgres.Handle
+
+
+migrationToIO :: Migration -> Hilt.Postgres.Handle -> IO ()
+migrationToIO migration db = case migration of
+  CreateTable tableName                   -> createTable db tableName
+  DropTable   tableName                   -> dropTable db tableName
+  AddColumn tableName fieldName fieldType -> addColumn db tableName fieldName fieldType
+  RemoveColumn tableName fieldName        -> removeColumn db tableName fieldName
+
 
 createTable :: Hilt.Postgres.Handle -> String -> IO ()
 createTable db table = do
