@@ -5,14 +5,14 @@ The motivation behind Oak was to have an Elm style architecture (TEA) server-sid
 I chose Haskell because it:
 
 - Has static types and a type-inferring compiler, which both prevents many bugs and favors working applications
-- Is a pure, functional language, which helps greatly manage complexity
+- Is a pure, immutable, functional language, which helps greatly in managing complexity
 - Has syntax that is extremely close to Elm, which means a low cognitive overhead switching between the two
 - Has great libraries to auto-generate Elm types/encoder/decoders/requests, reducing the cost of Haskell<->Elm interop (i.e. you can change something in backend, and get a compiler failure in the frontend!)
 - Has a huge and rich history, many use cases, and lots of detailed mathematical and theoretical groundings, all of which can be extremely overwhelming
 - Very difficult for beginners to approach in terms of setup, tooling, library choices
 
 
-Oak tries to leverage the pros, and provide a solution to the cons by limiting the surface area for beginners while allowing for advanced usage.
+Oak tries to leverage the pros, and provide a solution to the cons by limiting the surface area for beginners, while still allowing for advanced usage.
 
 
 #### Why not just run Elm on the server-side using nodejs?
