@@ -1,14 +1,19 @@
--- This is necessary to allow us to have the same field in multiple records
+-- This is necessary to allow us to have the same field name in multiple records
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module Schema where
 
+import Evergreen
+
 data User = User
-  { id :: Int
-  , nameX :: String
+  { id :: SerialPrimaryKey
+  , firstName :: String
+  , lastName :: String
+  , account :: Account
   }
 
 data Account = Account
-  { id :: Int
-  , userIdx :: Maybe Int
+  { id :: SerialPrimaryKey
+  , userId :: Maybe Int
+  , user :: User
   }

@@ -10,6 +10,7 @@ import qualified Data.ByteString.Char8 as S8
 
 import Data.Monoid ((<>))
 
+type SerialPrimaryKey = Int
 
 data Migration
   = CreateTable String

@@ -87,17 +87,17 @@ tableCreateStmt recordName = Qualifier
 
 -- @TODO handle nullable
 sqlType :: String -> String -> String
-sqlType name tipe = case name of
-  "id" -> "serial primary key"
-  _    -> case tipe of
+sqlType name tipe = case tipe of
 
-    "String"       -> "varchar(255) not null"
-    "Maybe String" -> "varchar(255)"
+  "SerialPrimaryKey" -> "serial primary key"
 
-    "Int"          -> "int8 not null"
-    "Maybe Int"    -> "int8"
+  "String"           -> "varchar(255) not null"
+  "Maybe String"     -> "varchar(255)"
 
-    _              -> trace ("sqlType tried to process unknown type: " ++ name ++ " :: " ++ tipe) "ERROR UNKNOWN TYPE"
+  "Int"              -> "int8 not null"
+  "Maybe Int"        -> "int8"
+
+  _                  -> trace ("sqlType tried to process unknown type: " ++ name ++ " :: " ++ tipe) "ERROR UNKNOWN TYPE"
 
 
 -- Display Helpers
