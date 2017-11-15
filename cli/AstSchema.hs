@@ -12,7 +12,7 @@ import ShellHelpers
 
 
 loadSchemaAst :: String -> IO Module
-loadSchemaAst modelVersion = fromParseResult <$> parseFile ("types/" ++ modelVersion ++ ".hs")
+loadSchemaAst modelVersion = fromParseResult <$> parseFile ("cli/" ++ modelVersion ++ ".hs")
 
 
 schemaSha :: Module -> Text

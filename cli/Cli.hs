@@ -29,13 +29,13 @@ import AstSchema (loadSchemaAst, schemaSha)
 import Migrations (allMigrations)
 
 
-parser :: Parser Text
-parser = argText "<command>" "One of: status, remember, migrate, destroy"
+argumentsParser :: Parser Text
+argumentsParser = argText "<command>" "One of: status, remember, migrate, destroy"
 
 
 main :: IO ()
 main = do
-  cmd <- options "Evergreen 🌲" parser
+  cmd <- options "Evergreen 🌲" argumentsParser
   case cmd of
     "status"   -> status
     "migrate"  -> migrate
@@ -115,7 +115,7 @@ status = Hilt.once $ do
 
     -- @TODO how will we do this dynamically?
     schemaAst         <- loadSchemaAst "Schema"
-    schemaStatus      <- gitEvergreenStatus $ fromText "types/Schema.hs"
+    schemaStatus      <- gitEvergreenStatus $ fromText "cli/Schema.hs"
     newSeasonFilename <- newSeasonFile $ schemaSha schemaAst
     let newSeasonFilepath = fromText $ "evergreen/seasons/" <> newSeasonFilename <> ".hs"
 
@@ -125,12 +125,12 @@ status = Hilt.once $ do
     case schemaStatus of
       Uninitiated -> do
         putStrLn "Schema not found!"
-        putStrLn "I was looking for types/Schema.hs, but could not find it."
+        putStrLn "I was looking for cli/Schema.hs, but could not find it."
         -- No Schema.hs file exists... should we write a new one?
 
       Deleted -> do
-        putStrLn "It looks like types/Schema.hs has been removed!"
-        putStrLn "Perhaps you want to `git checkout types/Schema.hs` to restore it?"
+        putStrLn "It looks like cli/Schema.hs has been removed!"
+        putStrLn "Perhaps you want to `git checkout cli/Schema.hs` to restore it?"
 
       UnexpectedEvergreenStatus -> putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
 

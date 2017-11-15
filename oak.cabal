@@ -57,9 +57,9 @@ library
   default-extensions: OverloadedStrings RecordWildCards
 
 executable eg
-  main-is: Status.hs
+  main-is: Cli.hs
   hs-source-dirs:
-      types/
+      cli/
   default-extensions: OverloadedStrings RecordWildCards
   build-depends:
       text

@@ -85,7 +85,7 @@ tableCreateStmt recordName = Qualifier
   (App (App (Var (UnQual (Ident "createTable"))) (Var (UnQual (Ident "db")))) (Lit (String (lowercase recordName))))
 
 
--- @TODO handle nullable
+
 sqlType :: String -> String -> String
 sqlType name tipe = case tipe of
 
@@ -97,7 +97,13 @@ sqlType name tipe = case tipe of
   "Int"              -> "int8 not null"
   "Maybe Int"        -> "int8"
 
-  _                  -> trace ("sqlType tried to process unknown type: " ++ name ++ " :: " ++ tipe) "ERROR UNKNOWN TYPE"
+  _ ->
+
+    -- @TODO NEXT so here we likely need to take an additional value that represents the AST we have,
+    -- so that we can query for references between objects. Need to look up the postgresql syntax for
+    -- foreign key references, see if that matches what we want here.
+    -- Probably also need to take a look at how Rails does things, and what SQL it creates/writes to DB.
+    trace ("sqlType tried to process unknown type: " ++ name ++ " :: " ++ tipe) "ERROR UNKNOWN TYPE"
 
 
 -- Display Helpers

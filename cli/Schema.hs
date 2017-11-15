@@ -6,14 +6,19 @@ module Schema where
 import Evergreen
 
 data User = User
-  { id :: SerialPrimaryKey
+  { id :: PrimaryInt
   , firstName :: String
   , lastName :: String
-  , account :: Account
   }
 
-data Account = Account
-  { id :: SerialPrimaryKey
-  , userId :: Maybe Int
-  , user :: User
+data Message = Message
+  { id :: PrimaryInt
+  , from :: User
+  , to :: User
+  , color :: Color
+  }
+
+data Color = Color
+  { id :: PrimaryInt
+  , hex :: String
   }

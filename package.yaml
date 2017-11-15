@@ -49,9 +49,9 @@ executables:
     - base
     - oak
   eg:
-    main: Status.hs
+    main: Cli.hs
     source-dirs:
-    - types/
+    - cli/
 
     dependencies:
     - ansi-wl-pprint
