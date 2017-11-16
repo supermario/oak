@@ -74,3 +74,20 @@ dropTable db table = do
 -- Do we really want a try? Would we rather things failed?
 tryDropTableStmt :: S8.ByteString -> SQL.Query
 tryDropTableStmt tableName = Query $ S8.concat ["drop table if exists ", quoteIdent tableName, ";"]
+
+
+
+dropAllTables :: Hilt.Postgres.Handle -> IO ()
+dropAllTables db = do
+  putStrLn "db: dropping all tables"
+  _ <- Hilt.Postgres.execute db tryDropAllTablesStmt ()
+  pure ()
+
+
+tryDropAllTablesStmt :: SQL.Query
+tryDropAllTablesStmt = Query $ S8.concat
+  [ "DROP SCHEMA public CASCADE;"
+  , "CREATE SCHEMA public;"
+  , "GRANT ALL ON SCHEMA public TO postgres;"
+  , "GRANT ALL ON SCHEMA public TO public;"
+  ]

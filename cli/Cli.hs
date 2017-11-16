@@ -57,9 +57,7 @@ migrate = Hilt.once $ do
 
   Hilt.program $ do
     -- @TODO Temporary while we're testing
-    -- @TODO can we have one command to drop all tables in DB?
-    dropTable db "user"
-    dropTable db "account"
+    dropAllTables db
 
     dbInfo <- Hilt.Postgres.dbInfo db
     Hilt.Postgres.pp dbInfo
