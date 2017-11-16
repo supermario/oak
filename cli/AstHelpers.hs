@@ -18,7 +18,7 @@ data Diff
 
 
 -- Name of record, record status, field changesets
-type RecordChanges = (String, EvergreenRecordStatus, [Diff])
+type RecordChanges = Dict.Map String (EvergreenRecordStatus, [Diff])
 
 
 data EvergreenRecordStatus
@@ -28,7 +28,7 @@ data EvergreenRecordStatus
 
 
 -- Path to migration, list of record changesets
-type SeasonChanges = (Turtle.FilePath, [RecordChanges])
+type SeasonChanges = (Turtle.FilePath, RecordChanges)
 
 
 {- Given two lists of data declaration ASTs, zips them together into a Dict keyed by record name
@@ -51,18 +51,18 @@ pairDecls list1 list2 =
     addRight
 
 
-diff :: [Decl] -> [Decl] -> [RecordChanges]
-diff d1 d2 = fmap declChanges (Dict.toList $ pairDecls d1 d2)
+diff :: [Decl] -> [Decl] -> RecordChanges
+diff d1 d2 = Dict.fromList $ fmap declChanges (Dict.toList $ pairDecls d1 d2)
 
 
-declChanges :: (String, (Decl, Decl)) -> RecordChanges
+declChanges :: (String, (Decl, Decl)) -> (String, (EvergreenRecordStatus, [Diff]))
 declChanges (recordName, (d1, d2)) =
   let f1           = fieldDecs d1
       f2           = fieldDecs d2
       added        = Added <$> (f2 \\ f1)
       removed      = Removed <$> (f1 \\ f2)
       recordStatus = if dataDeclName d1 == "Empty" then Created else Updated
-  in  (recordName, recordStatus, removed ++ added)
+  in  (recordName, (recordStatus, removed ++ added))
 
 
 fieldDecs :: Decl -> [Field]
