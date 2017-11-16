@@ -38,6 +38,7 @@ library:
   - random
   - slave-thread
   - stm
+  - time
   - unagi-chan
 
 

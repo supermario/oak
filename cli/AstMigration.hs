@@ -89,13 +89,16 @@ tableCreateStmt recordName = Qualifier
 sqlType :: String -> String -> String
 sqlType name tipe = case tipe of
 
-  "SerialPrimaryKey" -> "serial primary key"
+  "PrimaryInt"     -> "serial primary key"
 
-  "String"           -> "varchar(255) not null"
-  "Maybe String"     -> "varchar(255)"
+  "String"         -> "varchar(255) not null"
+  "Maybe String"   -> "varchar(255)"
 
-  "Int"              -> "int8 not null"
-  "Maybe Int"        -> "int8"
+  "Int"            -> "int8 not null"
+  "Maybe Int"      -> "int8"
+
+  "Datetime"       -> "timestamp with time zone not null"
+  "Maybe Datetime" -> "timestamp with time zone"
 
   _ ->
 

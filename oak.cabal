@@ -52,6 +52,7 @@ library
     , random
     , slave-thread
     , stm
+    , time
     , unagi-chan
   default-language: Haskell2010
   default-extensions: OverloadedStrings RecordWildCards

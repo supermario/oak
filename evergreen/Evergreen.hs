@@ -7,10 +7,12 @@ import Database.PostgreSQL.Migrations (add_column_stmt, drop_column_stmt)
 import Database.PostgreSQL.Escape (quoteIdent)
 import Database.PostgreSQL.Simple.Types (Query(..))
 import qualified Data.ByteString.Char8 as S8
+import Data.Time (UTCTime)
 
 import Data.Monoid ((<>))
 
 type PrimaryInt = Int
+type Datetime = UTCTime
 
 data Migration
   = CreateTable String
