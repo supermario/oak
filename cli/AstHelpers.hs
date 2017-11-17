@@ -24,6 +24,7 @@ type RecordChanges = Dict.Map String (EvergreenRecordStatus, [Diff])
 data EvergreenRecordStatus
   = Created
   | Updated
+  | Dropped
   deriving (Show, Eq)
 
 

@@ -5,6 +5,7 @@ import Turtle
 import qualified Text.PrettyPrint.ANSI.Leijen as A
 
 import Data.Char (toLower)
+import Data.List (isInfixOf)
 import qualified Data.Text as T
 import Data.Text.Encoding as E
 import Crypto.Hash
@@ -59,6 +60,10 @@ gs = stdout $ inshell "git status" empty
 
 lowercase :: String -> String
 lowercase = map toLower
+
+
+contains :: String -> String -> Bool
+contains = isInfixOf
 
 
 shellExec :: Text -> IO Text

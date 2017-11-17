@@ -2,6 +2,7 @@ module Evergreen where
 
 import qualified Hilt.Postgres
 
+-- https://github.com/alevy/postgresql-orm
 import qualified Database.PostgreSQL.Simple as SQL
 import Database.PostgreSQL.Migrations (add_column_stmt, drop_column_stmt)
 import Database.PostgreSQL.Escape (quoteIdent)
@@ -19,6 +20,7 @@ data Migration
   | DropTable String
   | AddColumn String String String
   | RemoveColumn String String
+  deriving (Show)
 
 
 -- @TODO currently all these helpers execute IO directly – ideally we'd have a
