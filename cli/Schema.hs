@@ -5,26 +5,26 @@ module Schema where
 
 import Evergreen
 
-data User = User
+data ColorX = ColorX
   { id :: PrimaryInt
-  , firstName :: String
-  , lastName :: String
+  , hex :: String
+  , user :: User
   , createdAt :: Datetime
   , updatedAt :: Datetime
   }
 
 data Message = Message
   { id :: PrimaryInt
-  , from :: User
-  , to :: User
-  , color :: Color
+  , user :: User
   , createdAt :: Datetime
   , updatedAt :: Datetime
   }
 
-data Color = Color
+data User = User
   { id :: PrimaryInt
-  , hex :: String
+  , firstName :: String
+  , lastName :: String
+  , color :: ColorX
   , createdAt :: Datetime
   , updatedAt :: Datetime
   }
