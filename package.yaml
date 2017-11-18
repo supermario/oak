@@ -19,26 +19,39 @@ library:
   source-dirs:
   - src
   - evergreen
-  - evergreen/seasons
   exposed-modules:
+  - App
+  - AstDatabase
+  - AstHelpers
+  - AstMigration
+  - AstMigrations
+  - AstSchema
+  - Evergreen
+  - MigrationHelpers
+  - Migrations
   - Oak
   - OakRuntime
-  - App
-  - Migrations
-  - MigrationHelpers
-  - Evergreen
+  - ShellHelpers
+
   dependencies:
+  - ansi-wl-pprint
   - base >=4.7 && <5
   - bytestring
   - cache
+  - containers
+  - cryptonite
+  - foldl
   - hashable
+  - haskell-src-exts-simple
   - hilt
   - postgresql-orm
   - postgresql-simple
   - random
+  - safe
   - slave-thread
   - stm
   - time
+  - turtle
   - unagi-chan
 
 
@@ -53,23 +66,19 @@ executables:
     main: Cli.hs
     source-dirs:
     - cli/
-
     dependencies:
-    - ansi-wl-pprint
     - base
     - bytestring
-    - containers
-    - cryptonite
     - foldl
     - haskell-src-exts-simple
     - hilt
     - oak
     - postgresql-orm
     - postgresql-simple
-    - safe
     - system-filepath
     - time
     - turtle
+
 
 tests:
   test:

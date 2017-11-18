@@ -86,7 +86,7 @@ getFilename file =
 
 qualifiedImport :: Text -> ImportDecl
 qualifiedImport name = ImportDecl
-  { importModule    = ModuleName $ unpack name
+  { importModule    = ModuleName $ "Seasons." ++ unpack name
   , importQualified = True
   , importSrc       = False
   , importSafe      = False
@@ -96,6 +96,7 @@ qualifiedImport name = ImportDecl
   }
 
 migrationTuple :: Text -> Exp
-migrationTuple name = Tuple Boxed
-                            [Lit (String $ unpack sha), Var (Qual (ModuleName $ unpack name) (Ident "migration"))]
+migrationTuple name = Tuple
+  Boxed
+  [Lit (String $ unpack sha), Var (Qual (ModuleName $ "Seasons." ++ unpack name) (Ident "migration"))]
   where sha = fromMaybe ("ERROR: could not parse SHA from filename " <> name) (atMay (splitOn "_" name) 2)

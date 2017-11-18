@@ -3,9 +3,6 @@
 module Main where
 
 import qualified Hilt
-import qualified Hilt.Postgres
-import Evergreen -- @TODO remove me when done with DB mocking tests
-
 import Language.Haskell.Exts.Simple
 import Data.Time (getCurrentTime, defaultTimeLocale, formatTime)
 import qualified Data.Text as T
@@ -14,19 +11,11 @@ import Turtle
 import Filesystem.Path.CurrentOS (fromText)
 import qualified Control.Foldl as Fold
 
-import ShellHelpers (tShow, sha1, asText, shellExec, fileAstSha, seasonFiles, firstTwoChars, loadFileAst)
-import MigrationHelpers (migrationExists, migrationsFor)
+import ShellHelpers (asText, shellExec, fileAstSha, seasonFiles, firstTwoChars, loadFileAst)
 import AstMigrations (writeMigrationsSummaryFile, resetMigrationsSummaryFile)
 import AstMigration (addMigrations, showSeasonChanges, writeSeasonAst)
-import AstDatabase (dbInfoToAst, showDbDiff)
 import AstHelpers (SeasonChanges, moduleDataDecls, astModel, diff)
 import AstSchema (loadSchemaAst, schemaSha)
-
-
--- Internal
--- @TODO this is a link into the real project, which we won't be able to have when Evergreen is a library
--- We'll need to read the Migrations.hs AST and check the seasons that way
-import Migrations (allMigrations)
 
 
 argumentsParser :: Parser Text
@@ -38,7 +27,6 @@ main = do
   cmd <- options "Evergreen 🌲" argumentsParser
   case cmd of
     "status"   -> status
-    "migrate"  -> migrate
     "remember" -> remember
     "destroy"  -> destroy
     _          -> T.putStrLn $ "Unsupported command: " <> cmd
@@ -49,37 +37,36 @@ applicationName :: String
 applicationName = "oak"
 
 
-migrate :: IO ()
-migrate = Hilt.once $ do
-
-    -- @TODO check if the DB exists and be more helpful
-  db <- Hilt.Postgres.load
-
-  Hilt.program $ do
-    -- @TODO Temporary while we're testing
-    dropAllTables db
-
-    dbInfo <- Hilt.Postgres.dbInfo db
-    Hilt.Postgres.pp dbInfo
-
-    case dbInfo of
-      [] -> do
-        putStrLn "Database is empty, initialising."
-        displayOrRun "init" db
-
-      _ -> do
-        -- Look at the DB schema and generate a SHA that identifies its AST
-        let dbSha = tShow $ sha1 $ tShow $ dbInfoToAst dbInfo
-
-        -- Check if this SHA is a known season amongst our current migrations
-        if migrationExists allMigrations dbSha
-          -- Ok, lets go ahead and try to process the migration from the current SHA onwards
-          then displayOrRun dbSha db
-          else do
-            -- @TODO How can we make these messages more user friendly?
-            T.putStrLn $ "Error: database current state of " <> dbSha <> " does not match any known seasons."
-            T.putStrLn "It's not safe to proceed, so I'm bailing out!"
-            -- @TODO show a diff of DB schema vs Schema file?
+-- migrate :: IO ()
+-- migrate = Hilt.once $ do
+--     -- @TODO check if the DB exists and be more helpful
+--   db <- Hilt.Postgres.load
+--
+--   Hilt.program $ do
+--     -- @TODO Temporary while we're testing
+--     dropAllTables db
+--
+--     dbInfo <- Hilt.Postgres.dbInfo db
+--     Hilt.Postgres.pp dbInfo
+--
+--     case dbInfo of
+--       [] -> do
+--         putStrLn "Database is empty, initialising."
+--         displayOrRun "init" db
+--
+--       _ -> do
+--         -- Look at the DB schema and generate a SHA that identifies its AST
+--         let dbSha = tShow $ sha1 $ tShow $ dbInfoToAst dbInfo
+--
+--         -- Check if this SHA is a known season amongst our current migrations
+--         if migrationExists allMigrations dbSha
+--           -- Ok, lets go ahead and try to process the migration from the current SHA onwards
+--           then displayOrRun dbSha db
+--           else do
+--             -- @TODO How can we make these messages more user friendly?
+--             T.putStrLn $ "Error: database current state of " <> dbSha <> " does not match any known seasons."
+--             T.putStrLn "It's not safe to proceed, so I'm bailing out!"
+--             -- @TODO show a diff of DB schema vs Schema file?
 
 -- Something like
 -- Hilt.evergreen $ do
@@ -88,16 +75,6 @@ migrate = Hilt.once $ do
 -- db <- Hilt.Evergreen.load
 
 
-displayOrRun :: Text -> Hilt.Postgres.Handle -> IO ()
-displayOrRun dbSha db = case migrationsFor allMigrations dbSha db of
-  Left err_ -> do
-    T.putStrLn err_
-    showDbDiff db
-
-  Right migrations -> do
-    T.putStrLn $ "Fetching migrations for DB SHA: " <> dbSha
-    sequence_ migrations
-    pure ()
 
 
 status :: IO ()
@@ -109,13 +86,13 @@ status = Hilt.once $ do
 
   Hilt.program $ do
 
-    mktree "evergreen/seasons"
+    mktree "evergreen/Seasons"
 
     -- @TODO how will we do this dynamically?
     schemaAst         <- loadSchemaAst "Schema"
-    schemaStatus      <- gitEvergreenStatus $ fromText "cli/Schema.hs"
+    schemaStatus      <- gitEvergreenStatus $ fromText "evergreen/Schema.hs"
     newSeasonFilename <- newSeasonFile $ schemaSha schemaAst
-    let newSeasonFilepath = fromText $ "evergreen/seasons/" <> newSeasonFilename <> ".hs"
+    let newSeasonFilepath = fromText $ "evergreen/Seasons/" <> newSeasonFilename <> ".hs"
 
     -- There may or may not already be a season to compare to.
     (seasonFile, seasonStatus) <- checkExistingSeason
@@ -123,12 +100,12 @@ status = Hilt.once $ do
     case schemaStatus of
       Uninitiated -> do
         putStrLn "Schema not found!"
-        putStrLn "I was looking for cli/Schema.hs, but could not find it."
+        putStrLn "I was looking for evergreen/Schema.hs, but could not find it."
         -- No Schema.hs file exists... should we write a new one?
 
       Deleted -> do
-        putStrLn "It looks like cli/Schema.hs has been removed!"
-        putStrLn "Perhaps you want to `git checkout cli/Schema.hs` to restore it?"
+        putStrLn "It looks like evergreen/Schema.hs has been removed!"
+        putStrLn "Perhaps you want to `git checkout evergreen/Schema.hs` to restore it?"
 
       UnexpectedEvergreenStatus -> putStrLn "Got an unexpected Evergreen status... please check `evergreenStatus`"
 
@@ -176,7 +153,7 @@ remember = do
 
 destroy :: IO ()
 destroy = do
-  _ <- shellExec "rm -rf evergreen/seasons"
+  _ <- shellExec "rm -rf evergreen/Seasons"
   resetMigrationsSummaryFile
   pure ()
 
@@ -229,7 +206,7 @@ writeAndShowSeason newSeasonFilepath = do
 
 adjustModuleName :: Text -> Module -> Module
 adjustModuleName fileName_ (Module _ mPragmas mImports mDecls) =
-  Module (Just (ModuleHead (ModuleName (T.unpack fileName_)) Nothing Nothing)) mPragmas mImports mDecls
+  Module (Just (ModuleHead (ModuleName ("Seasons." ++ T.unpack fileName_)) Nothing Nothing)) mPragmas mImports mDecls
 adjustModuleName _ module_ = module_ -- Failure case @TODO should it be silent?
 
 
@@ -268,7 +245,7 @@ newSeasonFile sha = do
 
 
 seasonFileWithSha :: Text -> IO [Turtle.FilePath]
-seasonFileWithSha sha = fold (Turtle.find (contains $ text sha) "evergreen/seasons") Fold.revList
+seasonFileWithSha sha = fold (Turtle.find (contains $ text sha) "evergreen/Seasons") Fold.revList
 
 
 findLastKnownSeason :: IO (Maybe Turtle.FilePath)

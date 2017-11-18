@@ -1,4 +1,4 @@
--- This file has been generated from package.yaml by hpack version 0.17.0.
+-- This file has been generated from package.yaml by hpack version 0.17.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -25,35 +25,48 @@ library
   hs-source-dirs:
       src
       evergreen
-      evergreen/seasons
   exposed-modules:
+      App
+      AstDatabase
+      AstHelpers
+      AstMigration
+      AstMigrations
+      AstSchema
+      Evergreen
+      MigrationHelpers
+      Migrations
       Oak
       OakRuntime
-      App
-      Migrations
-      MigrationHelpers
-      Evergreen
+      ShellHelpers
   other-modules:
       MigrationsXXX
       Model
       ModelA
       ModelB
       ModelC
-      Schema_20171117164142_53a4707384760633c4abb61951c4d34a835d05be
+      Schema
+      Seasons.Schema_20171118004219_53a4707384760633c4abb61951c4d34a835d05be
       Paths_oak
   build-depends:
       text
+    , ansi-wl-pprint
     , base >=4.7 && <5
     , bytestring
     , cache
+    , containers
+    , cryptonite
+    , foldl
     , hashable
+    , haskell-src-exts-simple
     , hilt
     , postgresql-orm
     , postgresql-simple
     , random
+    , safe
     , slave-thread
     , stm
     , time
+    , turtle
     , unagi-chan
   default-language: Haskell2010
   default-extensions: OverloadedStrings RecordWildCards
@@ -65,29 +78,17 @@ executable eg
   default-extensions: OverloadedStrings RecordWildCards
   build-depends:
       text
-    , ansi-wl-pprint
     , base
     , bytestring
-    , containers
-    , cryptonite
     , foldl
     , haskell-src-exts-simple
     , hilt
     , oak
     , postgresql-orm
     , postgresql-simple
-    , safe
     , system-filepath
     , time
     , turtle
-  other-modules:
-      AstDatabase
-      AstHelpers
-      AstMigration
-      AstMigrations
-      AstSchema
-      Schema
-      ShellHelpers
   default-language: Haskell2010
 
 executable oak-example

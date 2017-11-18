@@ -1,6 +1,6 @@
 module AstMigration where
 
--- Ast functions related to creating the seasons/Schema_* migration files
+-- Ast functions related to creating the Seasons/Schema_* migration files
 
 import Data.Monoid ((<>))
 import qualified Data.Map.Strict as Dict

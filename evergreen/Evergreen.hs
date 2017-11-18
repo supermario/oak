@@ -9,8 +9,15 @@ import Database.PostgreSQL.Escape (quoteIdent)
 import Database.PostgreSQL.Simple.Types (Query(..))
 import qualified Data.ByteString.Char8 as S8
 import Data.Time (UTCTime)
+import Debug.Trace
+import Data.Text as T
+import qualified Data.Text.IO as T
 
 import Data.Monoid ((<>))
+
+import MigrationHelpers (migrationExists, migrationsFor)
+import ShellHelpers (tShow, sha1)
+import AstDatabase (dbInfoToAst, showDbDiff)
 
 type PrimaryInt = Int
 type Datetime = UTCTime
@@ -26,6 +33,46 @@ data Migration
 -- @TODO currently all these helpers execute IO directly – ideally we'd have a
 -- set of statements return in a migration scenario so we can run them all in a
 -- single transaction if possible
+
+
+migrate :: Hilt.Postgres.Handle -> [(Text, Hilt.Postgres.Handle -> IO ())] -> IO ()
+migrate db allMigrations = do
+  dbInfo <- Hilt.Postgres.dbInfo db
+  Hilt.Postgres.pp dbInfo
+
+  case dbInfo of
+    [] -> do
+      putStrLn "Database is empty, initialising."
+      displayOrRun "init" db allMigrations
+
+    _ -> do
+      -- Look at the DB schema and generate a SHA that identifies its AST
+      let dbSha = dbShaText dbInfo
+
+      -- Check if this SHA is a known season amongst our current migrations
+      if migrationExists allMigrations dbSha
+        -- Ok, lets go ahead and try to process the migration from the current SHA onwards
+        then displayOrRun dbSha db allMigrations
+        else do
+          -- @TODO How can we make these messages more user friendly?
+          T.putStrLn $ "Error: database current state of " <> dbSha <> " does not match any known seasons."
+          T.putStrLn "It's not safe to proceed, so I'm bailing out!"
+
+
+dbShaText :: Hilt.Postgres.DbInfo -> Text
+dbShaText dbInfo = tShow $ sha1 $ tShow $ dbInfoToAst dbInfo
+
+
+displayOrRun :: Text -> Hilt.Postgres.Handle -> [(Text, Hilt.Postgres.Handle -> IO ())] -> IO ()
+displayOrRun dbSha db allMigrations = case migrationsFor allMigrations dbSha db of
+  Left err_ -> do
+    T.putStrLn err_
+    showDbDiff db
+
+  Right migrations -> do
+    T.putStrLn $ "Fetching migrations for DB SHA: " <> dbSha
+    sequence_ migrations
+    pure ()
 
 
 -- Re-export this type so migration files compile strictly for now, until we address the above point and remove db dep

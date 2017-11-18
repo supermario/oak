@@ -105,7 +105,7 @@ astModel moduleName recordName fields = do
         fmap (\(name, tipe, _) -> FieldDecl [Ident name] (TyCon (UnQual (Ident tipe)))) fields
 
   Module
-    (Just (ModuleHead (ModuleName moduleName) Nothing Nothing))
+    (Just (ModuleHead (ModuleName $ "Seasons." ++ moduleName) Nothing Nothing))
     []
     []
     [ DataDecl DataType

@@ -95,7 +95,7 @@ testParse = parseFile "evergreen/seasons/Schema_20170812141450_be119f5af8585265f
 
 testWriteAst :: IO ()
 testWriteAst = do
-  ast <- parseFile "cli/Schema.hs"
+  ast <- parseFile "evergreen/Schema.hs"
   writeTextFile "formattedAst.hs" $ T.pack $ show ast
   stdout $ inshell "hindent --style gibiansky formattedAst.hs" empty
   pure ()
