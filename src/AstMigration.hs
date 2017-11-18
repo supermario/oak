@@ -33,14 +33,23 @@ addMigrations (Module mHead mPragmas mImports mDecls) changes =
  where
   importDecl =
     [ ImportDecl
-        { importModule    = ModuleName "Evergreen"
-        , importQualified = False
-        , importSrc       = False
-        , importSafe      = False
-        , importPkg       = Nothing
-        , importAs        = Nothing
-        , importSpecs     = Nothing
-        }
+      { importModule    = ModuleName "Evergreen"
+      , importQualified = False
+      , importSrc       = False
+      , importSafe      = False
+      , importPkg       = Nothing
+      , importAs        = Nothing
+      , importSpecs     = Nothing
+      }
+    , ImportDecl
+      { importModule    = ModuleName "GHC.Generics"
+      , importQualified = False
+      , importSrc       = False
+      , importSafe      = False
+      , importPkg       = Nothing
+      , importAs        = Nothing
+      , importSpecs     = Nothing
+      }
     ]
 addMigrations _ _ = undefined
 
