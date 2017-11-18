@@ -9,7 +9,6 @@ import Database.PostgreSQL.Escape (quoteIdent)
 import Database.PostgreSQL.Simple.Types (Query(..))
 import qualified Data.ByteString.Char8 as S8
 import Data.Time (UTCTime)
-import Debug.Trace
 import Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -37,6 +36,9 @@ data Migration
 
 migrate :: Hilt.Postgres.Handle -> [(Text, Hilt.Postgres.Handle -> IO ())] -> IO ()
 migrate db allMigrations = do
+  -- @TODO Temporary while we're testing
+  dropAllTables db
+
   dbInfo <- Hilt.Postgres.dbInfo db
   Hilt.Postgres.pp dbInfo
 
@@ -57,6 +59,13 @@ migrate db allMigrations = do
           -- @TODO How can we make these messages more user friendly?
           T.putStrLn $ "Error: database current state of " <> dbSha <> " does not match any known seasons."
           T.putStrLn "It's not safe to proceed, so I'm bailing out!"
+
+
+-- Something like
+-- Hilt.evergreen $ do
+-- Could do the magic to handle this under the hood?
+-- Or perhaps even better, an Evergreen version of the postgres service, that does this on load?
+-- db <- Hilt.Evergreen.load
 
 
 dbShaText :: Hilt.Postgres.DbInfo -> Text

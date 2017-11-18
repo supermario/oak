@@ -37,46 +37,6 @@ applicationName :: String
 applicationName = "oak"
 
 
--- migrate :: IO ()
--- migrate = Hilt.once $ do
---     -- @TODO check if the DB exists and be more helpful
---   db <- Hilt.Postgres.load
---
---   Hilt.program $ do
---     -- @TODO Temporary while we're testing
---     dropAllTables db
---
---     dbInfo <- Hilt.Postgres.dbInfo db
---     Hilt.Postgres.pp dbInfo
---
---     case dbInfo of
---       [] -> do
---         putStrLn "Database is empty, initialising."
---         displayOrRun "init" db
---
---       _ -> do
---         -- Look at the DB schema and generate a SHA that identifies its AST
---         let dbSha = tShow $ sha1 $ tShow $ dbInfoToAst dbInfo
---
---         -- Check if this SHA is a known season amongst our current migrations
---         if migrationExists allMigrations dbSha
---           -- Ok, lets go ahead and try to process the migration from the current SHA onwards
---           then displayOrRun dbSha db
---           else do
---             -- @TODO How can we make these messages more user friendly?
---             T.putStrLn $ "Error: database current state of " <> dbSha <> " does not match any known seasons."
---             T.putStrLn "It's not safe to proceed, so I'm bailing out!"
---             -- @TODO show a diff of DB schema vs Schema file?
-
--- Something like
--- Hilt.evergreen $ do
--- Could do the magic to handle this under the hood
--- Or perhaps even better, an Evergreen version of the postgres service, that does this on load?
--- db <- Hilt.Evergreen.load
-
-
-
-
 status :: IO ()
 status = Hilt.once $ do
 
