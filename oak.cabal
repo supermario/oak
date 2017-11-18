@@ -34,18 +34,17 @@ library
       AstSchema
       Evergreen
       MigrationHelpers
-      Migrations
       Oak
       OakRuntime
       ShellHelpers
   other-modules:
+      Migrations
       MigrationsXXX
       Model
       ModelA
       ModelB
       ModelC
       Schema
-      Seasons.Schema_20171118004219_53a4707384760633c4abb61951c4d34a835d05be
       Paths_oak
   build-depends:
       text

@@ -19,7 +19,7 @@ import AstSchema (loadSchemaAst, schemaSha)
 
 
 argumentsParser :: Parser Text
-argumentsParser = argText "<command>" "One of: status, remember, migrate, destroy"
+argumentsParser = argText "<command>" "One of: status, remember, destroy"
 
 
 main :: IO ()

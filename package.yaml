@@ -28,7 +28,6 @@ library:
   - AstSchema
   - Evergreen
   - MigrationHelpers
-  - Migrations
   - Oak
   - OakRuntime
   - ShellHelpers
