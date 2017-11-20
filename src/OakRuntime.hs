@@ -11,7 +11,7 @@ import Control.Monad      (forever)
 import qualified Data.Cache as Cache
 
 import qualified Hilt
-import qualified Hilt.Server
+import qualified Hilt.Server       as Server
 import qualified Hilt.SocketServer as SocketServer
 
 import qualified App
@@ -52,7 +52,7 @@ run = Hilt.manage $ Hilt.program $ do
 
         case handle service of
           SocketHandle socketHandle -> do
-            Hilt.Server.runWebsocket socketHandle
+            Server.runWebsocket socketHandle Server.defaultMiddlewares
             pure ()
 
           NoHandle -> putStrLn "CmdSocketBroadcast got NoHandle?!"

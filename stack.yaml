@@ -2,9 +2,10 @@ resolver: lts-8.23
 
 packages:
 - '.'
+# - '../hilt'
 - location:
     git: git@github.com:supermario/hilt.git
-    commit: ae4a54f9fde56015dce8de83cd0935e5e5776eeb
+    commit: 9dbf9431a6b8fcff2134e7a7c1b88cd71512fc03
 
 extra-deps:
 - heroku-0.1.2.3
