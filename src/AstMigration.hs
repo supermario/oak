@@ -119,19 +119,20 @@ sqlType recordChanges name tipe = case tipe of
 
   "PrimaryInt"     -> "serial primary key"
 
-  "String"         -> "varchar(255) not null"
-  "Maybe String"   -> "varchar(255)"
+  "String"         -> "varchar not null"
+  "Maybe String"   -> "varchar"
 
   "Int"            -> "int8 not null"
   "Maybe Int"      -> "int8"
 
   "Double"         -> "double precision not null"
-  "Maybe Double"   -> "double precision int8"
+  "Maybe Double"   -> "double precision"
 
   "Datetime"       -> "timestamp with time zone not null"
   "Maybe Datetime" -> "timestamp with time zone"
 
-
+  -- For now we'll have Lists simply convert to "String" in sqlType, and use FromJSON/ToJSON derivations for SQL ToField/FromField
+  "[a]"            -> "varchar not null"
 
   _                -> if Dict.member tipe recordChanges
 -- The type is actually a reference to another top level record name, so we want a reference field

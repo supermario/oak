@@ -75,8 +75,12 @@ fieldDecs _ = [("Error:fieldDecs", "Field is not a DataDecl with QualConDecl", F
 fieldDecltoField :: FieldDecl -> Field
 fieldDecltoField (FieldDecl (Ident fieldName:_) (TyCon (UnQual (Ident tipe)))) = (fieldName, tipe, False)
 fieldDecltoField (FieldDecl (Ident fieldName:_) (TyApp (TyCon (UnQual (Ident "Maybe"))) (TyCon (UnQual (Ident tipe)))))
-  = (fieldName, "Maybe " ++ tipe, False)
-fieldDecltoField _ = ("Error:fieldDecltoField", "Field doens't match shape", False)
+  = (fieldName, "Maybe " ++ tipe, True)
+-- For now we'll have Lists simply convert to "String" in sqlType, and use FromJSON/ToJSON derivations for SQL ToField/FromField
+fieldDecltoField (FieldDecl (Ident fieldName:_) (TyList (TyCon (UnQual (Ident _)))))
+  = (fieldName, "[a]", False)
+
+fieldDecltoField x = ("Error:fieldDecltoField", "Unexpected: " ++ show x, False)
 
 
 areDataDecls :: Decl -> Decl -> Bool
