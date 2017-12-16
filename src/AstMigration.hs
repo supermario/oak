@@ -57,12 +57,13 @@ addMigrations _ _ = undefined
 migrationsAst :: SeasonChanges -> [Decl]
 migrationsAst (seasonPath, recordChanges) =
 
-  let fieldMigrations (recordName, (recordStatus, changes)) =
-        tableCreate recordName recordStatus ++ fmap (recordChangesToMigration recordChanges recordName) changes
-
+  let
       migrationsAst =
-        recordChanges |> Dict.toList |> fmap fieldMigrations |> Prelude.concat |> sortBy sortReferences |> fmap
+        recordChanges |> Dict.toList |> fmap fixTableCase |> fmap fieldMigrations |> Prelude.concat |> sortBy sortReferences |> fmap
           (migrationStmt recordChanges)
+
+      fieldMigrations (recordName, (recordStatus, changes)) =
+        tableCreate recordName recordStatus ++ fmap (recordChangesToMigration recordChanges recordName) changes
 
       tableCreate recordName recordStatus = case recordStatus of
         Created -> [CreateTable recordName]
@@ -75,6 +76,11 @@ migrationsAst (seasonPath, recordChanges) =
         )
       , FunBind [Match (Ident "migration") [PVar (Ident "db")] (UnGuardedRhs (Do migrationsAst)) Nothing]
       ]
+
+
+fixTableCase :: (String, t) -> (String, t)
+fixTableCase (recordName, changes) =
+  (lowercase recordName, changes)
 
 
 recordChangesToMigration :: RecordChanges -> String -> Diff -> Migration
