@@ -1,6 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.17.1.
+-- This file has been generated from package.yaml by hpack version 0.20.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 8168e356f7f8219cdc2da902364d58cded146aa6982604e3d567bc920280bdd1
 
 name:                oak
 version:             0.0.0.1
@@ -47,8 +49,7 @@ library
       Schema
       Paths_oak
   build-depends:
-      text
-    , ansi-wl-pprint
+      ansi-wl-pprint
     , base >=4.7 && <5
     , bytestring
     , cache
@@ -64,6 +65,7 @@ library
     , safe
     , slave-thread
     , stm
+    , text
     , time
     , turtle
     , unagi-chan
@@ -76,8 +78,7 @@ executable eg
       cli/
   default-extensions: OverloadedStrings RecordWildCards
   build-depends:
-      text
-    , base
+      base
     , bytestring
     , foldl
     , haskell-src-exts-simple
@@ -86,18 +87,22 @@ executable eg
     , postgresql-orm
     , postgresql-simple
     , system-filepath
+    , text
     , time
     , turtle
+  other-modules:
+      Paths_oak
   default-language: Haskell2010
 
 executable oak-example
   main-is: Run.hs
   build-depends:
-      text
-    , base
+      base
     , oak
+    , text
   other-modules:
       AppSample
+      Paths_oak
   hs-source-dirs:
       examples/
   default-language: Haskell2010
@@ -111,10 +116,11 @@ test-suite test
   default-extensions: OverloadedStrings RecordWildCards
   ghc-options: -Wall
   build-depends:
-      text
-    , base
+      base
     , hspec
+    , text
   other-modules:
       Evergreen.MigrationSpec
       Spec
+      Paths_oak
   default-language: Haskell2010

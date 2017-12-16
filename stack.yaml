@@ -1,11 +1,8 @@
-resolver: lts-8.23
+resolver: lts-9.17
 
 packages:
 - '.'
 # - '../hilt'
-- location:
-    git: git@github.com:supermario/hilt.git
-    commit: 9dbf9431a6b8fcff2134e7a7c1b88cd71512fc03
 
 extra-deps:
 - heroku-0.1.2.3
@@ -15,6 +12,8 @@ extra-deps:
 - haskell-src-exts-1.19.1
 - haskell-src-exts-simple-1.19.0.0
 - postgresql-orm-0.5.0
+- git: git@github.com:supermario/hilt.git
+  commit: 9dbf9431a6b8fcff2134e7a7c1b88cd71512fc03
 
 flags: {}
 
