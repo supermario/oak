@@ -111,6 +111,8 @@ tableCreateStmt recordName =
   Qualifier (App (App (Var (UnQual (Ident "createTable"))) (Var (UnQual (Ident "db")))) (Lit (String recordName)))
 
 
+-- Follow the same mapping as Persistent
+-- https://github.com/yesodweb/persistent/blob/master/docs/Persistent-entity-syntax.md
 
 sqlType :: RecordChanges -> String -> String -> String
 sqlType recordChanges name tipe = case tipe of
@@ -123,8 +125,13 @@ sqlType recordChanges name tipe = case tipe of
   "Int"            -> "int8 not null"
   "Maybe Int"      -> "int8"
 
+  "Double"         -> "double precision not null"
+  "Maybe Double"   -> "double precision int8"
+
   "Datetime"       -> "timestamp with time zone not null"
   "Maybe Datetime" -> "timestamp with time zone"
+
+
 
   _                -> if Dict.member tipe recordChanges
 -- The type is actually a reference to another top level record name, so we want a reference field
