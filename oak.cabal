@@ -2,22 +2,22 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8168e356f7f8219cdc2da902364d58cded146aa6982604e3d567bc920280bdd1
+-- hash: 2adc54712705ee7be9e6eeec646e33fc2a4376278de732950ec13caebbc3439f
 
-name:                oak
-version:             0.0.0.1
-synopsis:            A reactive server-side application framework + tookit for Haskell
-description:         Please see README.md
-homepage:            https://github.com/supermario/oak#readme
-bug-reports:         https://github.com/supermario/oak/issues
-author:              Mario Rogic
-maintainer:          hello@mario.net.au
-copyright:           2016-present Mario Rogic
-license:             GPL-3
-license-file:        LICENSE
-category:            Web
-build-type:          Simple
-cabal-version:       >= 1.10
+name:           oak
+version:        0.0.0.1
+synopsis:       A reactive server-side application framework + tookit for Haskell
+description:    Please see README.md
+category:       Web
+homepage:       https://github.com/supermario/oak#readme
+bug-reports:    https://github.com/supermario/oak/issues
+author:         Mario Rogic
+maintainer:     hello@mario.net.au
+copyright:      2016-present Mario Rogic
+license:        GPL-3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
 
 source-repository head
   type: git
@@ -27,27 +27,7 @@ library
   hs-source-dirs:
       src
       evergreen
-  exposed-modules:
-      App
-      AstDatabase
-      AstHelpers
-      AstMigration
-      AstMigrations
-      AstSchema
-      Evergreen
-      MigrationHelpers
-      Oak
-      OakRuntime
-      ShellHelpers
-  other-modules:
-      Migrations
-      MigrationsXXX
-      Model
-      ModelA
-      ModelB
-      ModelC
-      Schema
-      Paths_oak
+  default-extensions: OverloadedStrings RecordWildCards
   build-depends:
       ansi-wl-pprint
     , base >=4.7 && <5
@@ -69,8 +49,27 @@ library
     , time
     , turtle
     , unagi-chan
+  exposed-modules:
+      App
+      AstDatabase
+      AstHelpers
+      AstMigration
+      AstMigrations
+      AstSchema
+      Evergreen
+      MigrationHelpers
+      Oak
+      OakRuntime
+      ShellHelpers
+  other-modules:
+      Migrations
+      Model
+      ModelA
+      ModelB
+      ModelC
+      Schema
+      Paths_oak
   default-language: Haskell2010
-  default-extensions: OverloadedStrings RecordWildCards
 
 executable eg
   main-is: Cli.hs
@@ -96,6 +95,9 @@ executable eg
 
 executable oak-example
   main-is: Run.hs
+  hs-source-dirs:
+      examples/
+  default-extensions: OverloadedStrings RecordWildCards
   build-depends:
       base
     , oak
@@ -103,10 +105,7 @@ executable oak-example
   other-modules:
       AppSample
       Paths_oak
-  hs-source-dirs:
-      examples/
   default-language: Haskell2010
-  default-extensions: OverloadedStrings RecordWildCards
 
 test-suite test
   type: exitcode-stdio-1.0
