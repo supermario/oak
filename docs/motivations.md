@@ -4,7 +4,7 @@ The motivation behind Oak was to have an Elm style architecture (TEA) server-sid
 
 I chose Haskell because it:
 
-- Has static types and a type-inferring compiler, which both prevents many bugs and favors working applications
+- Has static types and a type-inferring compiler, which both prevents many bugs and favours working applications
 - Is a pure, immutable, functional language, which helps greatly in managing complexity
 - Has syntax that is extremely close to Elm, which means a low cognitive overhead switching between the two
 - Has great libraries to auto-generate Elm types/encoder/decoders/requests, reducing the cost of Haskell<->Elm interop (i.e. you can change something in backend, and get a compiler failure in the frontend!)
@@ -34,7 +34,7 @@ Haskell is great, but it wasn't built specifically with the browser in mind. GHC
 
 Elm has been very carefully crafted from the ground up specifically for the browser and web development, and as a result I think it is _excellent_ in its domain*.
 
-Conversely, Elm wasn't created with being run as a server-side language in mind. There are many server-side usecases which are unanswered in browser-side Elm today.
+Conversely, Elm wasn't created with being run as a server-side language in mind. There are many server-side use-cases which are unanswered in browser-side Elm today.
 
 Oak aims to explore some of the ideas of Elm in Haskell, and seek answers to the question of "what might a good static type-inferred and pure server-side web development focused language look like?"
 

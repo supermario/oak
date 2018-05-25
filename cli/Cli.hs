@@ -276,7 +276,6 @@ gitEvergreenStatus filepath = do
     (' ', 'D') ->
       pure Deleted -- Added, so not yet committed
 
-
     -- @TODO other statuses other than Uninitiatied
     -- https://git-scm.com/docs/git-status#_short_format
     _ -> pure UnexpectedEvergreenStatus

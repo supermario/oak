@@ -3,6 +3,7 @@ module App where
 import Oak
 import Data.Text (Text)
 
+
 data Model = Model
   { counter :: Int
   , message :: Text

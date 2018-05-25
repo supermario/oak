@@ -134,7 +134,6 @@ tryDropTableStmt :: S8.ByteString -> SQL.Query
 tryDropTableStmt tableName = Query $ S8.concat ["drop table if exists ", quoteIdent tableName, ";"]
 
 
-
 dropAllTables :: Hilt.Postgres.Handle -> IO ()
 dropAllTables db = do
   putStrLn "db: dropping all tables"
