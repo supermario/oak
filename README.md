@@ -1,5 +1,6 @@
 
-:warning: Oak is in an experimental stage, it is unreleased
+:warning: Oak is no longer in development, as research here led to the creation of [Lamdera](https://lamdera.com)!
+
 
 **Oak is a minimal server-side application framework inspired by Elm and The Elm Architecture**
 
